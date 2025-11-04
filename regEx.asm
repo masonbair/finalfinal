@@ -135,6 +135,11 @@ main:
 # and then we see the [] and say, we are dealing with macthing single characters not in a-z
 # and then we see the * and say, we are dealing with matching set of chracters not in a-z
 	
+# After chatting with ChatGPT, it agreed with the recursion approach
+# In addition I also think we should split up the regular expression into tokens
+# EI [^a-z]* becomes -> "[", "^", "a-z", "]", "*" and then we evaluate
+
+# The tricky part comes from figuring out how to make the recursion work. Like how would that be accomplished, idk hahahaa
 	
 # basic: Matches an exact string literally (e.g., "abc").
 basic:
