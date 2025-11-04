@@ -125,4 +125,34 @@ main:
 	li $a1, 50			# Allocates the byte space for the input
 	move $t0, $a0			# Saves the a0 address (The string address) into t0
 	syscall
+	
+	
+# For the actual development of the reg expressions, I think it would be best to build it recursively.
+# Here is an example:
+# [^a-z]*
+# This expression would first say, we are dealing with a string a-z
+# And then we see the negate and say, we are dealing with a string not a-z
+# and then we see the [] and say, we are dealing with macthing single characters not in a-z
+# and then we see the * and say, we are dealing with matching set of chracters not in a-z
+	
+	
+# basic: Matches an exact string literally (e.g., "abc").
+basic:
+
+# brackets: Matches any one character inside the brackets (e.g., [abc]).
+brackets:
+
+# asterixs: Matches zero or more of the preceding pattern (e.g., [abc]*).
+asterixs:
+
+# period: Matches any single character (wildcard for one).
+period:
+
+# negate: Matches anything NOT inside the brackets (e.g., [^A-Z]).
+# requirement: Must be inside brackets [ ]; caret (^) must come immediately after '['.
+negate:
+
+# forwardslash: Escapes special characters like '.' so they are treated literally. (e.g., \.edu looks for .edu)
+forwardslash:
+
 
