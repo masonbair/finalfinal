@@ -101,6 +101,8 @@
 	expressionPrompt: .asciiz "Please enter a valid regular expression: \n"
 	evaluatePrompt: .asciiz "Please enter an expression to evaluate: \n"
 	
+	tokenArray: .space 40
+	
 	
 	
 .text
@@ -160,8 +162,86 @@ main:
 
 ## TOKEN TYPES ##
 # 1. Literal: "a" or "hello": needs to match exactly
-# 2. Dot . : the dot means a wildcard, any character: a.c -> abc or afc or axc
-# 3. Char class: Matches any character inside of the char list: [a-z], [c-d], [A-z]
+# 2. Char class: Matches any character inside of the char list: [a-z], [c-d], [A-z]
+
+
+
+	li $t0, 1			# Represents the value of 1, when we go through a loop we go to the next one by 1
+	
+	# Values for the regex input
+	la $t1, regularExpressionInput		# Loads the first address of the buffer into t1
+	move $t2, $t1 			# Loads beginning of the buffer
+	lb $t3, 0($t1)			# Loads byte value
+	
+	# Values for the token arrary
+	la $t4, tokenArray		# Loads the first address of the buffer into t1
+	move $t5, $t4 			# Loads beginning of the buffer
+	lb $t6, 0($t4)			# Loads byte value
+	
+	
+reset:		# Called when a token is finished building and the values need to be reset
+	li $t7, 0		# t7 represents what ever value we are adding to the token array
+
+tokenize:	
+	beq $t3, 10, exit		# Exits the program when it finds the new line char, which is the end of the input
+	j printChar			# Calls a jump to printchar
+	
+	beq $t3, 91, frontBracket	# Represents the token is a Char class
+	
+	j increment
+	
+
+
+# Still need to deal with the range of values in the chararray
+# Plus the *
+# Also need to make a way to print out the tokens so I can make sure everything is working correctly
+charArrayTokenize:
+	beq $t3, 94, negate
+	beq $t3, 93, backBracket
+
+
+
+frontBracket:	# Means we are dealing with a char array
+	li $t7, 2		# 2 should be going into the first spot of the token, which means when we evaluate it that we are dealing with a char class
+	sb $t7, 0($t5)		# Store the value of $t7 into the token array at location $t5
+	j charArrayIncrement		# Continues to read through the other pieces until we reach the end bracket
+
+backBracket:
+	j increment	# Breaks out of char array increment loop and goes back to regular tokenizer
+
+negate:
+	li $t7, 1 		# One means negate for the second byte
+	sb $t7, 0($t5)
+	j charArrayIncrement
+
+charArrayIncrement:
+	add $t2, $t2, $t0		#Finds new index memory location. 
+					# t0 is always 1 and since we ar ein a buffer, each byte is only 1 over
+					# This means that to move to the next spot for a character we can just add t2 with t0 and store it back in t2
+					# This is essentially t2++
+	add $t5, $t5, $t0
+					
+	lb $t3, 0($t2)			# This loads the next byte of the buffer into t3
+	j charArrayTokenize
+
+
+increment:
+	add $t2, $t2, $t0		#Finds new index memory location. 
+					# t0 is always 1 and since we ar ein a buffer, each byte is only 1 over
+					# This means that to move to the next spot for a character we can just add t2 with t0 and store it back in t2
+					# This is essentially t2++
+					
+	lb $t3, 0($t2)			# This loads the next byte of the buffer into t3
+	j tokenize
+
+
+printChar:
+	move $a0, $t3		# Loads char value in t3 into a0
+	li $v0, 11		#11 means print character, $a0 is the char to print
+	syscall
+	
+	j increment
+
 
 	
 # basic: Matches an exact string literally (e.g., "abc").
@@ -184,3 +264,6 @@ negate:
 forwardslash:
 
 
+exit:
+	li $v0, 10
+	syscall
