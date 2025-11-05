@@ -140,6 +140,29 @@ main:
 # EI [^a-z]* becomes -> "[", "^", "a-z", "]", "*" and then we evaluate
 
 # The tricky part comes from figuring out how to make the recursion work. Like how would that be accomplished, idk hahahaa
+
+###---------###
+# Okay here is the idea. 
+# We first make a tokenizer for the Regex expression.
+# Then this tokenized version gets stored in an array and gets looped through for one or more characters. 
+# Still needs some thinking
+
+
+## ------ TOKENIZER ----- ##
+# This is the idea for the Tokenizer, which will produce computable results for evaluation.
+# We have an 8 byte Register per token, and each token will represent a difference piece of information for the token
+
+#Byte 1: Type
+#Byte 2: Flags ( Negate ^ or Escaped ]\ )
+#Byte 3: Len (How many chars of data does this token have)
+#Byte 4: Padding (Does not represent anything, just used to keep the token 8 bytes
+#Byte 5-8: Data - byte 5: A, byte 6: z for example.
+
+## TOKEN TYPES ##
+# 1. Literal: "a" or "hello": needs to match exactly
+# 2. Dot . : the dot means a wildcard, any character: a.c -> abc or afc or axc
+# 3. Char class: Matches any character inside of the char list: [a-z], [c-d], [A-z]
+
 	
 # basic: Matches an exact string literally (e.g., "abc").
 basic:
