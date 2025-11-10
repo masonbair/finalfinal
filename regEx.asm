@@ -101,9 +101,10 @@
 	expressionPrompt: .asciiz "Please enter a valid regular expression: \n"
 	evaluatePrompt: .asciiz "Please enter an expression to evaluate: \n"
 	
-	tokenArray: .space 40
+	tokenArray: .space 48
+	tokenDebugMsg: .asciiz "Token: "
 	
-	
+	literalDataBuffer: .space 128 		# USed for storing large string data for literals
 	
 .text
 main:
@@ -176,54 +177,21 @@ main:
 	# Values for the token arrary
 	la $t4, tokenArray		# Loads the first address of the buffer into t1
 	move $t5, $t4 			# Loads beginning of the buffer
-	lb $t6, 0($t4)			# Loads byte value
-	
 	
 reset:		# Called when a token is finished building and the values need to be reset
 	li $t7, 0		# t7 represents what ever value we are adding to the token array
+	li $t8, 0		# Represets a byte offset for working with the t5 register. This helps make sure t5 stays on track
 
 tokenize:	
 	beq $t3, 10, exit		# Exits the program when it finds the new line char, which is the end of the input
-	j printChar			# Calls a jump to printchar
+	#j printChar			# Calls a jump to printchar
 	
 	beq $t3, 91, frontBracket	# Represents the token is a Char class
+	# If it is not frontBracket then it needs to be a literal
+	j literal
 	
 	j increment
 	
-
-
-# Still need to deal with the range of values in the chararray
-# Plus the *
-# Also need to make a way to print out the tokens so I can make sure everything is working correctly
-charArrayTokenize:
-	beq $t3, 94, negate
-	beq $t3, 93, backBracket
-
-
-
-frontBracket:	# Means we are dealing with a char array
-	li $t7, 2		# 2 should be going into the first spot of the token, which means when we evaluate it that we are dealing with a char class
-	sb $t7, 0($t5)		# Store the value of $t7 into the token array at location $t5
-	j charArrayIncrement		# Continues to read through the other pieces until we reach the end bracket
-
-backBracket:
-	j increment	# Breaks out of char array increment loop and goes back to regular tokenizer
-
-negate:
-	li $t7, 1 		# One means negate for the second byte
-	sb $t7, 0($t5)
-	j charArrayIncrement
-
-charArrayIncrement:
-	add $t2, $t2, $t0		#Finds new index memory location. 
-					# t0 is always 1 and since we ar ein a buffer, each byte is only 1 over
-					# This means that to move to the next spot for a character we can just add t2 with t0 and store it back in t2
-					# This is essentially t2++
-	add $t5, $t5, $t0
-					
-	lb $t3, 0($t2)			# This loads the next byte of the buffer into t3
-	j charArrayTokenize
-
 
 increment:
 	add $t2, $t2, $t0		#Finds new index memory location. 
@@ -233,7 +201,95 @@ increment:
 					
 	lb $t3, 0($t2)			# This loads the next byte of the buffer into t3
 	j tokenize
+	
 
+literal:
+	li $t7, 1		# Represents type 1 which is the literal and it will be stored in the token
+    	sb $t7, 0($t5)     	# Byte 0: Type = 2 (char class)
+    	li $t8, 0          	# Start with 0 data bytes written
+    	j literalTokenize
+
+# Needs to take the whole literalvalue and store it in the data section of the token	
+literalTokenize:
+	la $t9, literalDataBuffer		# The t9 register will be pointing at the string buffer for literals
+	
+	sb $t9, 4($t5)		# Stores the address for the literalDataBuffer in the token at byte 4
+	
+	li $t6, 0		#Represents the character length of the literal we are dealing with
+	
+
+literalLoop:
+    	beq $t3, 91, literalDone   #Front bracket stop
+    	beq $t3, 10, literalDone   #Newline stop
+    
+    	sb $t3, 0($t9)             # Store char in buffer
+    	addi $t9, $t9, 1           # Move buffer pointer
+    	addi $t6, $t6, 1           # Increment count
+    
+    	add $t2, $t2, $t0          # Next input char
+    	lb $t3, 0($t2)
+    	j literalLoop
+    
+literalDone:
+    	sb $zero, 0($t9)           # Null terminate
+    	sb $t6, 2($t5)             # Store length of literal character in byte 2
+    	j printToken
+
+
+# Still need to deal with the range of values in the chararray
+# Plus the *
+# Also need to make a way to print out the tokens so I can make sure everything is working correctly
+charArrayTokenize:
+	beq $t3, 94, negate
+	beq $t3, 93, backBracket
+	j charRange
+
+frontBracket:
+    	li $t7, 2		# Represents type 2 which is the char class and it will be stored in the token
+    	sb $t7, 0($t5)     # Byte 0: Type = 2 (char class)
+    	li $t8, 0          # Start with 0 data bytes written
+    	j charArrayIncrement
+
+backBracket:
+	j printToken	# Breaks out of char array increment loop and goes back to regular tokenizer
+	
+#Either called after backBracket or printtoken
+nextToken:
+	addi $t5, $t5, 6	# Moves to the next token 
+	j reset
+
+negate:
+	li $t7, 1 		# One means negate for the second byte
+	sb $t7, 1($t5)
+	j charArrayIncrement
+	
+charRange:
+	# $t3 currently holds the first character 
+	sb $t3, 4($t5)     # Store first char at byte 4
+    
+	# Skip over the '-' character
+	add $t2, $t2, $t0  # just like i++
+    
+	# Load the second character 
+	add $t2, $t2, $t0  # i++
+	lb $t3, 0($t2)     # Load second char into $t3
+	sb $t3, 5($t5)     # Store second char at byte 5
+    
+	li $t7, 2          # Length = 2 (two characters)
+	sb $t7, 2($t5)     # Store length in byte 2
+    
+	li $t8, 2          # We've written 2 data bytes
+	j charArrayIncrement
+
+
+charArrayIncrement:
+	add $t2, $t2, $t0		#Finds new index memory location. 
+					# t0 is always 1 and since we ar ein a buffer, each byte is only 1 over
+					# This means that to move to the next spot for a character we can just add t2 with t0 and store it back in t2
+					# This is essentially t2++
+					
+	lb $t3, 0($t2)			# This loads the next byte of the buffer into t3
+	j charArrayTokenize
 
 printChar:
 	move $a0, $t3		# Loads char value in t3 into a0
@@ -241,6 +297,73 @@ printChar:
 	syscall
 	
 	j increment
+
+
+printToken:
+    # Print "Token: "
+    li $v0, 4
+    la $a0, tokenDebugMsg
+    syscall
+    
+    # Print Byte 0 (Type)
+    lb $a0, 0($t5)
+    li $v0, 1          # Print integer
+    syscall
+    
+    li $v0, 11         # Print space
+    li $a0, 32
+    syscall
+    
+    # Print Byte 1 (Flags)
+    lb $a0, 1($t5)
+    li $v0, 1
+    syscall
+    
+    li $v0, 11
+    li $a0, 32
+    syscall
+    
+    # Print Byte 2 (Length)
+    lb $a0, 2($t5)
+    li $v0, 1
+    syscall
+    
+    li $v0, 11
+    li $a0, 32
+    syscall
+    
+    # Print 0 (placeholder)
+    li $a0, 0
+    li $v0, 1
+    syscall
+    
+    li $v0, 11
+    li $a0, 32
+    syscall
+    
+    # Print Byte 4-7 (Data as characters)
+    lb $a0, 4($t5)
+    li $v0, 11         # Print char
+    syscall
+    
+    li $v0, 11 		#Space
+    li $a0, 32
+    syscall
+    
+    lb $a0, 5($t5)
+    li $v0, 11
+    syscall
+    
+    li $v0, 11 		#Space
+    li $a0, 32
+    syscall
+    
+    # Print newline
+    li $v0, 11
+    li $a0, 10
+    syscall
+    
+    j exit
 
 
 	
@@ -258,7 +381,7 @@ period:
 
 # negate: Matches anything NOT inside the brackets (e.g., [^A-Z]).
 # requirement: Must be inside brackets [ ]; caret (^) must come immediately after '['.
-negate:
+
 
 # forwardslash: Escapes special characters like '.' so they are treated literally. (e.g., \.edu looks for .edu)
 forwardslash:
