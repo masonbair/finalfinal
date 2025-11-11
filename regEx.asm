@@ -283,10 +283,20 @@ charClassNoStar:
     	j printToken	# Breaks out of char array increment loop and goes back to regular tokenizer	
 
 	
-#Either called after backBracket or printtoken
+#Either called printtoken
 nextToken:
-	addi $t5, $t5, 8	# Moves to the next token 
-	j reset
+    	addi $t5, $t5, 8	# Move to the next token position
+    
+    	# Check if reached end of input
+    	beq $t3, 10, exit   # If newline, we are finished
+    	beq $t3, 0, exit    # If null terminator, we are finsihed
+    	
+    	# Advance to next character before tokenizing
+    	add $t2, $t2, $t0          	# Move to next char
+    	lb $t3, 0($t2)  		# Loads in the next value
+    
+    	# continue tokenizing if not done yet
+    	j reset
 
 negate:
 	li $t7, 1 		# One means negate for the second byte
@@ -431,7 +441,7 @@ printToken:
     li $a0, 32
     syscall
     
-    j nextToken
+    j printTokenDone
 
         
 printLiteralString:
@@ -444,7 +454,7 @@ printLiteralString:
     li $a0, 32
     syscall
     
-    j nextToken
+    j printTokenDone
     
     
 printTokenDone:
@@ -453,7 +463,7 @@ printTokenDone:
     li $a0, 10
     syscall
     
-    j exit
+    j nextToken
 
 exit:
 	li $v0, 10
