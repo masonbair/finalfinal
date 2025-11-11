@@ -101,10 +101,12 @@
 	expressionPrompt: .asciiz "Please enter a valid regular expression: \n"
 	evaluatePrompt: .asciiz "Please enter an expression to evaluate: \n"
 	
-	tokenArray: .space 48
-	tokenDebugMsg: .asciiz "Token: "
-	
-	literalDataBuffer: .space 128 		# USed for storing large string data for literals
+	.align 2                    # Align to word boundary (2^2 = 4 bytes)
+    	tokenArray: .space 64
+    	tokenDebugMsg: .asciiz "Token: "
+    
+    	.align 2                    # Align literal buffer too
+    	literalDataBuffer: .space 128
 	
 .text
 main:
@@ -181,6 +183,7 @@ main:
 reset:		# Called when a token is finished building and the values need to be reset
 	li $t7, 0		# t7 represents what ever value we are adding to the token array
 	li $t8, 0		# Represets a byte offset for working with the t5 register. This helps make sure t5 stays on track
+	li $s1, 0	# Random value for keeping track of the char range literal length
 
 tokenize:	
 	beq $t3, 10, exit		# Exits the program when it finds the new line char, which is the end of the input
@@ -209,11 +212,11 @@ literal:
     	li $t8, 0          	# Start with 0 data bytes written
     	j literalTokenize
 
-# Needs to take the whole literalvalue and store it in the data section of the token	
+# Needs to take the whole literal value and store it in the data section of the token	
 literalTokenize:
 	la $t9, literalDataBuffer		# The t9 register will be pointing at the string buffer for literals
 	
-	sb $t9, 4($t5)		# Stores the address for the literalDataBuffer in the token at byte 4
+	sw $t9, 4($t5)		# Stores the address for the literalDataBuffer in the token at byte 4
 	
 	li $t6, 0		#Represents the character length of the literal we are dealing with
 	
@@ -221,6 +224,7 @@ literalTokenize:
 literalLoop:
     	beq $t3, 91, literalDone   #Front bracket stop
     	beq $t3, 10, literalDone   #Newline stop
+    	beq $t3, 42, literalDone   # If '*', stop
     
     	sb $t3, 0($t9)             # Store char in buffer
     	addi $t9, $t9, 1           # Move buffer pointer
@@ -232,7 +236,20 @@ literalLoop:
     
 literalDone:
     	sb $zero, 0($t9)           # Null terminate
-    	sb $t6, 2($t5)             # Store length of literal character in byte 2
+    	sb $t6, 2($t5)             # Store length
+    
+    	# Peek at next character (We do not want to modify t2 directly yet becuase if the value is not a * then we mess up the flow of tokenizing)
+    	move $t7, $t2              # temp = t2 
+    	lb $t7, 0($t7)             # Load next char into $t7
+    	bne $t7, 42, literalNotStar # If not '*', skip
+    
+    	li $t7, 1
+    	sb $t7, 3($t5)             # Set repetition flag
+    	add $t2, $t2, $t0          # NOW advance past the '*'
+    	lb $t3, 0($t2)             # Load next char after '*'
+    
+literalNotStar:
+    	# $t2 and $t3 are still pointing at the right place
     	j printToken
 
 
@@ -251,11 +268,24 @@ frontBracket:
     	j charArrayIncrement
 
 backBracket:
-	j printToken	# Breaks out of char array increment loop and goes back to regular tokenizer
+	# Checks for any *'s
+   	 # Peek at next character
+    	add $t7, $t2, $t0          # temp = current + 1
+    	lb $t7, 0($t7)             # Load next char
+    	bne $t7, 42, charClassNoStar
+    
+    	li $t7, 1
+    	sb $t7, 3($t5)             # Set repetition
+    	add $t2, $t2, $t0          # Advance past '*'
+    	lb $t3, 0($t2)             # Load char after '*'
+    
+charClassNoStar:
+    	j printToken	# Breaks out of char array increment loop and goes back to regular tokenizer	
+
 	
 #Either called after backBracket or printtoken
 nextToken:
-	addi $t5, $t5, 6	# Moves to the next token 
+	addi $t5, $t5, 8	# Moves to the next token 
 	j reset
 
 negate:
@@ -267,8 +297,12 @@ charRange:
 	# $t3 currently holds the first character 
 	sb $t3, 4($t5)     # Store first char at byte 4
     
-	# Skip over the '-' character
+	# Skip over the '-' character if it exists, else it is a literal
 	add $t2, $t2, $t0  # just like i++
+	lb $t3, 0($t2)		# Loads the 2nd char
+	
+	bne $t3, 45, charRangeLiteral
+	
     
 	# Load the second character 
 	add $t2, $t2, $t0  # i++
@@ -281,6 +315,25 @@ charRange:
 	li $t8, 2          # We've written 2 data bytes
 	j charArrayIncrement
 
+charRangeLiteral:
+	addi $s1, $s1, 1	# For the length of the current literal
+	
+	move $t7, $s1 		# Stores the length of the current literal
+	sb $t7, 2($t5)		# Stores
+	
+	beq $t3, 93, backBracket
+	
+	addi $s2, $s1, 4	# Puts s2 in the correct byte position for storing the next char of the literal in the data stream
+	
+	# Dynamically puts the char in the correct byte value so we can loop it
+	add $s2, $t5, $s2      # Calculate: base address + offset
+	sb $t3, 0($s2)         # Store at calculated address
+
+	
+	add $t2, $t2, $t0		# Moves to next index
+	lb $t3, 0($t2)
+	
+	j charRangeLiteral
 
 charArrayIncrement:
 	add $t2, $t2, $t0		#Finds new index memory location. 
@@ -332,14 +385,18 @@ printToken:
     li $a0, 32
     syscall
     
-    # Print 0 (placeholder)
-    li $a0, 0
+    # Print 0 for placeholder and 1 for star
+    lb $a0, 3($t5)
     li $v0, 1
     syscall
     
     li $v0, 11
     li $a0, 32
     syscall
+    
+     # Check for char range or literal
+    lb $t7, 0($t5)         		
+    beq $t7, 1, printLiteralString   	# If type == 1, print literal string
     
     # Print Byte 4-7 (Data as characters)
     lb $a0, 4($t5)
@@ -358,34 +415,45 @@ printToken:
     li $a0, 32
     syscall
     
+    lb $a0, 6($t5)
+    li $v0, 11         # Print char
+    syscall
+    
+    li $v0, 11 		#Space
+    li $a0, 32
+    syscall
+    
+    lb $a0, 7($t5)
+    li $v0, 11
+    syscall
+    
+    li $v0, 11 		#Space
+    li $a0, 32
+    syscall
+    
+    j nextToken
+
+        
+printLiteralString:
+    # Load pointer from bytes 4-7
+    lw $a0, 4($t5)         # Load address of literal string
+    li $v0, 4              # Print string syscall
+    syscall
+    
+    li $v0, 11             # Print space
+    li $a0, 32
+    syscall
+    
+    j nextToken
+    
+    
+printTokenDone:
     # Print newline
     li $v0, 11
     li $a0, 10
     syscall
     
     j exit
-
-
-	
-# basic: Matches an exact string literally (e.g., "abc").
-basic:
-
-# brackets: Matches any one character inside the brackets (e.g., [abc]).
-brackets:
-
-# asterixs: Matches zero or more of the preceding pattern (e.g., [abc]*).
-asterixs:
-
-# period: Matches any single character (wildcard for one).
-period:
-
-# negate: Matches anything NOT inside the brackets (e.g., [^A-Z]).
-# requirement: Must be inside brackets [ ]; caret (^) must come immediately after '['.
-
-
-# forwardslash: Escapes special characters like '.' so they are treated literally. (e.g., \.edu looks for .edu)
-forwardslash:
-
 
 exit:
 	li $v0, 10
