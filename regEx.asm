@@ -210,6 +210,18 @@ literal:
 	li $t7, 1		# Represents type 1 which is the literal and it will be stored in the token
     	sb $t7, 0($t5)     	# Byte 0: Type = 2 (char class)
     	li $t8, 0          	# Start with 0 data bytes written
+    	
+    	beq $t3, 46, period
+    	
+    	j literalTokenize
+   
+period:
+	li $t7, 2
+    	sb $t7, 3($t5)             # Set repetition flag
+    	
+    	add $t2, $t2, $t0       # Move past the '.'
+        lb $t3, 0($t2)          # Load next char
+    	
     	j literalTokenize
 
 # Needs to take the whole literal value and store it in the data section of the token	
@@ -243,8 +255,12 @@ literalDone:
     	lb $t7, 0($t7)             # Load next char into $t7
     	bne $t7, 42, literalNotStar # If not '*', skip
     
-    	li $t7, 1
-    	sb $t7, 3($t5)             # Set repetition flag
+    	# IF there is a period and a *, we need to keep track of that
+    	lb $t6, 3($t5)             # Load current byte 3 value
+        addi $t6, $t6, 1           # Add 1 (star flag)
+        sb $t6, 3($t5)             # Store back: 0->1, 2->3
+    	
+    	
     	add $t2, $t2, $t0          # NOW advance past the '*'
     	lb $t3, 0($t2)             # Load next char after '*'
     
