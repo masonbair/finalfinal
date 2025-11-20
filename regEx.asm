@@ -158,10 +158,12 @@ main:
 # We have an 8 byte Register per token, and each token will represent a difference piece of information for the token
 
 #Byte 1: Type
-#Byte 2: Flags ( Negate ^ or Escaped ]\ )
+#Byte 2: ^
 #Byte 3: Len (How many chars of data does this token have)
-#Byte 4: Padding (Does not represent anything, just used to keep the token 8 bytes
-#Byte 5-8: Data - byte 5: A, byte 6: z for example.
+#Byte 4: 1 represents * and 2 represents . and 3 represents .*
+#Byte 5-6 is either one of two things
+# IF A RANGE byte 5-6 is a and z for [a-z]
+# IF LITERAL BYTE 5-6, BYTE 6 does not exist, and instead byte 5 is a memerory address pointing to the literal value in a seperate buffer
 
 ## TOKEN TYPES ##
 # 1. Literal: "a" or "hello": needs to match exactly
@@ -234,11 +236,25 @@ literalTokenize:
 	
 
 literalLoop:
+	#beq $t3, 92, forwardSlash	# Used for storing the fancy value
     	beq $t3, 91, literalDone   #Front bracket stop
     	beq $t3, 10, literalDone   #Newline stop
     	beq $t3, 42, literalDone   # If '*', stop
+    	
     
     	sb $t3, 0($t9)             # Store char in buffer
+    	addi $t9, $t9, 1           # Move buffer pointer
+    	addi $t6, $t6, 1           # Increment count
+    
+    	add $t2, $t2, $t0          # Next input char
+    	lb $t3, 0($t2)
+    	j literalLoop
+    	
+forwardSlash:
+	add $t2, $t2, $t0          # Next input char
+    	lb $t3, 0($t2)
+
+	sb $t3, 0($t9)             # Store char in buffer
     	addi $t9, $t9, 1           # Move buffer pointer
     	addi $t6, $t6, 1           # Increment count
     
@@ -292,10 +308,13 @@ backBracket:
     
     	li $t7, 1
     	sb $t7, 3($t5)             # Set repetition
+    	add $t2, $t2, $t0          # Advance past ']'
     	add $t2, $t2, $t0          # Advance past '*'
     	lb $t3, 0($t2)             # Load char after '*'
     
-charClassNoStar:
+charClassNoStar:	
+	add $t2, $t2, $t0          # Advance past ']' even when no star
+        lb $t3, 0($t2)
     	j printToken	# Breaks out of char array increment loop and goes back to regular tokenizer	
 
 	
@@ -308,8 +327,8 @@ nextToken:
     	beq $t3, 0, exit    # If null terminator, we are finsihed
     	
     	# Advance to next character before tokenizing
-    	add $t2, $t2, $t0          	# Move to next char
-    	lb $t3, 0($t2)  		# Loads in the next value
+    	#add $t2, $t2, $t0          	# Move to next char
+    	#lb $t3, 0($t2)  		# Loads in the next value
     
     	# continue tokenizing if not done yet
     	j reset
