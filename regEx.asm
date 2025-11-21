@@ -236,7 +236,7 @@ literalTokenize:
 	
 
 literalLoop:
-	#beq $t3, 92, forwardSlash	# Used for storing the fancy value
+	beq $t3, 92, forwardSlash	# Used for storing the fancy value
     	beq $t3, 91, literalDone   #Front bracket stop
     	beq $t3, 10, literalDone   #Newline stop
     	beq $t3, 42, literalDone   # If '*', stop
@@ -308,7 +308,6 @@ backBracket:
     
     	li $t7, 1
     	sb $t7, 3($t5)             # Set repetition
-    	add $t2, $t2, $t0          # Advance past ']'
     	add $t2, $t2, $t0          # Advance past '*'
     	lb $t3, 0($t2)             # Load char after '*'
     
@@ -346,7 +345,7 @@ charRange:
 	add $t2, $t2, $t0  # just like i++
 	lb $t3, 0($t2)		# Loads the 2nd char
 	
-	bne $t3, 45, charRangeLiteral
+	bne $t3, 45, loadCharRangeLiteral
 	
     
 	# Load the second character 
@@ -360,7 +359,15 @@ charRange:
 	li $t8, 2          # We've written 2 data bytes
 	j charArrayIncrement
 
+loadCharRangeLiteral:
+	lb $t6, 1($t5)             # Load current byte 3 value
+        addi $t6, $t6, 2           # Add 2 for charRangeLiteral)
+        sb $t6, 1($t5)             # Store back: 0->1, 2->3
+        
+	j charRangeLiteral
+
 charRangeLiteral:
+
 	addi $s1, $s1, 1	# For the length of the current literal
 	
 	move $t7, $s1 		# Stores the length of the current literal
