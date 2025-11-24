@@ -431,7 +431,6 @@ mismatch:
     j match_loop
 
 
-# ---------- FULL MATCH FOUND ----------------------
 full_match:
     jal printMatch
 
@@ -444,7 +443,7 @@ full_match:
 
 match_done:
     jr $ra
-#==================================
+
 printMatch:
     # making copies so not to mess up original pointers
     move $t8, $t2      # end pointer
