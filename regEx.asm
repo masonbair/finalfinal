@@ -1,97 +1,22 @@
 # Mason Bair
+# Savar Shrestha
+# Sumedh Joshi
 
-# This is the beginning of the final final for computer org.
-# The goal is to make a regular expression program
+## ------ TOKENIZER ----- ##
+# This is the idea for the Tokenizer, which will produce computable results for evaluation.
+# We have an 8 byte Register per token, and each token will represent a difference piece of information for the token
 
-############################################################
-#                REGULAR EXPRESSION TEST CASES
-#-----------------------------------------------------------
-# Each test demonstrates a different regular expression 
-# pattern, what it matches, and the expected output.
-############################################################
+#Byte 1: Type
+#Byte 2: ^
+#Byte 3: Len (How many chars of data does this token have)
+#Byte 4: 1 represents * and 2 represents . and 3 represents .*
+#Byte 5-6 is either one of two things
+# IF A RANGE byte 5-6 is a and z for [a-z]
+# IF LITERAL BYTE 5-6, BYTE 6 does not exist, and instead byte 5 is a memerory address pointing to the literal value in a seperate buffer
 
-#-----------------------------------------------------------
-# 1. Basic String Match
-# Expression:      abc
-# Description:     Matches the exact sequence "abc".
-# Input 1:         abc
-# Output:          abc
-# Example 2 Input: abcdbefabc
-# Expected Matches: abc, abc
-#-----------------------------------------------------------
-
-# 2. Character Class
-# Expression:      [abc]
-# Description:     Matches any single character a, b, or c.
-# Input 1:         a, b, c, a, b, b, b, c
-# Output:          a b c a b b b c
-# Example Input:   abcdefabbbc
-# Expected Matches: a, b, c, a, b, b, b, c
-#-----------------------------------------------------------
-
-# 3. Character Class with Repetition
-# Expression:      [abc]*
-# Description:     Matches zero or more characters that are 
-#                  either a, b, or c in a row.
-# Input 1:         abc, abbc
-# Example Input:   abcefabbc
-# Expected Matches: abc, abbc
-#-----------------------------------------------------------
-
-# 4. Wildcard
-# Expression:      .
-# Description:     Matches any single character (letter, 
-#                  number, or symbol).
-# Input 1:         1, 2, 3, a, b, c
-# Example Input:   123abc
-# Expected Matches: 1, 2, 3, a, b, c
-#-----------------------------------------------------------
-
-# 5. Wildcard with Repetition
-# Expression:      .*
-# Description:     Matches any number of any characters.
-# Input 1:         .*
-# Example Input:   345Hello There
-# Expected Matches: 345Hello There
-#-----------------------------------------------------------
-
-# 6. Uppercase Letters Only
-# Expression:      [A-Z]*
-# Description:     Matches zero or more uppercase letters.
-# Input 1:         [A-Z]* 
-# Example Input:   345Hello There
-# Expected Matches: H, T
-#-----------------------------------------------------------
-
-# 7. Negated Character Class
-# Expression:      [^A-z]*
-# Description:     Matches characters that are NOT letters.
-# Input 1:         [^A-z]*
-# Example Input:   345Hello There
-# Expected Matches: 345, ' '
-#-----------------------------------------------------------
-
-# 8. Domain Ending (.edu)
-# Expression:      [A-z]*\.edu
-# Description:     Matches any sequence of letters ending 
-#                  with ".edu".
-# Example Input:   emgail@kent.edumjmhb
-# Expected Matches: kent.edu
-#-----------------------------------------------------------
-
-# 9. Email at Kent Domain
-# Expression:      [A-z]*@kent\.edu
-# Description:     Matches any email that ends with 
-#                  "@kent.edu".
-# Example Input:   123some@kent.edumjmhb
-# Expected Matches: some@kent.edu
-#-----------------------------------------------------------
-
-# EXTRA CREDIT
-# Expression:      [a-z0-9]*
-# Description:     Matches lowercase letters and digits.
-# Input 1:         Ello, here, 2006
-# Expected Matches: Ello, here, 2006
+## TOKEN TYPES ##
+# 1. Literal: "a" or "hello": needs to match exactly
+# 2. Char class: Matches any character inside of the char list: [a-z], [c-d], [A-z]
 ############################################################
 
 .data
@@ -131,44 +56,6 @@ main:
 	move $t0, $a0			# Saves the a0 address (The string address) into t0
 	syscall
 	
-	
-# For the actual development of the reg expressions, I think it would be best to build it recursively.
-# Here is an example:
-# [^a-z]*
-# This expression would first say, we are dealing with a string a-z
-# And then we see the negate and say, we are dealing with a string not a-z
-# and then we see the [] and say, we are dealing with macthing single characters not in a-z
-# and then we see the * and say, we are dealing with matching set of chracters not in a-z
-	
-# After chatting with ChatGPT, it agreed with the recursion approach
-# In addition I also think we should split up the regular expression into tokens
-# EI [^a-z]* becomes -> "[", "^", "a-z", "]", "*" and then we evaluate
-
-# The tricky part comes from figuring out how to make the recursion work. Like how would that be accomplished, idk hahahaa
-
-###---------###
-# Okay here is the idea. 
-# We first make a tokenizer for the Regex expression.
-# Then this tokenized version gets stored in an array and gets looped through for one or more characters. 
-# Still needs some thinking
-
-
-## ------ TOKENIZER ----- ##
-# This is the idea for the Tokenizer, which will produce computable results for evaluation.
-# We have an 8 byte Register per token, and each token will represent a difference piece of information for the token
-
-#Byte 1: Type
-#Byte 2: ^
-#Byte 3: Len (How many chars of data does this token have)
-#Byte 4: 1 represents * and 2 represents . and 3 represents .*
-#Byte 5-6 is either one of two things
-# IF A RANGE byte 5-6 is a and z for [a-z]
-# IF LITERAL BYTE 5-6, BYTE 6 does not exist, and instead byte 5 is a memerory address pointing to the literal value in a seperate buffer
-
-## TOKEN TYPES ##
-# 1. Literal: "a" or "hello": needs to match exactly
-# 2. Char class: Matches any character inside of the char list: [a-z], [c-d], [A-z]
-
 
 
 	li $t0, 1			# Represents the value of 1, when we go through a loop we go to the next one by 1
@@ -505,8 +392,152 @@ printTokenDone:
     li $a0, 10
     syscall
     
-    j nextToken
+    j what_to_do
+    
+# ===============================================================   
+what_to_do:
+	la $t5, tokenArray     # first token
+	lb $t0, 0($t5)         # token type
+	
+	# Branch for test case 1
+	li $t1, 1
+	beq $t0, $t1, Test_case_1
+	
+	# Branch for test case 2
+	li $t1, 2 
+	beq $t0, $t1, test_case_2
+	
+	j exit                 # Till all the functions are made this is just a precausino
+#============================================================
+Test_case_1:
+    lw $t1, 4($t5)         #   literal data in token
+    la $t2, InputToEvaluate  
+    lb $t3, 2($t5)         # token length
 
+    li $t4, 0              # index inside literal
+    li $t6, 0              # index inside input
+
+match_loop:
+    lb $t7, 0($t2)         # load next input char
+    beqz $t7, match_done   # end of input → stop
+
+    lb $t8, 0($t1)         # load token character
+
+    bne $t7, $t8, mismatch # branch to mis match if t7 and 8 are nnot same
+	 # else increment
+    addi $t4, $t4, 1        # literal index++
+    addi $t2, $t2, 1        # input pointer++
+    addi $t1, $t1, 1        # token pointer++
+
+ # if all literals match jump to full match
+    beq  $t4, $t3, full_match
+
+    j match_loop
+
+mismatch:
+    lw $t1, 4($t5)      # reset literal pointer
+    li $t4, 0           # reset index to 0
+    lb $t3, 2($t5)      # *** reload literal length ***
+    addi $t2, $t2, 1    # increment input pointer
+    j match_loop
+
+
+full_match:
+    jal printMatch
+
+    lw $t1, 4($t5)      # reset pointer to literal start
+    li $t4, 0           # reset literal index
+    lb $t3, 2($t5)      # reload literal length
+
+    j match_loop
+
+
+match_done:
+    jr $ra
+
+printMatch:
+    # making copies so not to mess up original pointers
+    move $t8, $t2      # end pointer
+    move $t9, $t3      # length
+
+    sub $t8, $t8, $t9  # t8 = start of matched substring
+
+printMatch_loop:
+    beqz $t9, printMatch_done   # finished printing substring
+
+    lb $a0, 0($t8)      # print each character
+    li $v0, 11
+    syscall
+
+    addi $t8, $t8, 1    # next input char
+    addi $t9, $t9, -1   # reduce length
+    j printMatch_loop
+
+printMatch_done:
+    # Print comma
+    li $a0, ','
+    li $v0, 11
+    syscall
+
+    jr $ra
+
+	
+#################################
+# t0 = holds input text
+# t1 = holds current input char
+# t2 = has num of char in class
+# t3 = holds flags like negate
+#t4  = match the flag
+#t6 = holds the index counter
+#t7 = holds offset of byte
+#t8 = holds address of token
+#s0 = stores char to check
+
+test_case_2: 
+	la $t0, InputToEvaluate	# load the input text to address	
+	lb $t1, 0($t0)		# load the first input character
+	lb $t2, 2($t5)	# read token at t5
+	lb $t3, 1($t5)
+
+char_input_loop: 
+	beq $t1, 10, exit # check for new line
+	beq $t1, 0, exit	# exit the loop when the input ends
+	li $t4, 0 		# match the flag
+	li $t6, 0 		# index
+
+char_check_loop: 
+	beq $t6, $t2, char_print	#when index = token stop loop
+	addi $t7, $t6, 4	# need address of the token byte
+	add $t8, $t5, $t7		# address
+	lb $s0, 0($t8) 	# holds char to check
+	beq $s0, $t1, char_match	#compare char to input to check if they match
+	addi $t6, $t6, 1	#move to next index
+	j char_check_loop	#loop to check another char
+
+char_match:
+	li $t4, 1		# set the flag matches to 1
+	j char_print
+	
+char_print: 
+	beq $t4, 0, char_input_increment	#check if the flag is set to 0
+	
+	#print matched char
+	li $v0, 11
+	move $a0, $t1
+	syscall	
+	
+	#print comma
+	li $v0, 11
+	li $a0, ','
+	syscall
+	
+
+char_input_increment:
+	addi $t0, $t0, 1 	# increment the input string
+	lb $t1, 0($t0)		# continue scanning
+	j char_input_loop
+
+###################################3
 exit:
-	li $v0, 10
+	li $v0, 10	# exit elegantly
 	syscall
