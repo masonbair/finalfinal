@@ -398,16 +398,21 @@ printTokenDone:
 what_to_do:
 	la $t5, tokenArray     # first token
 	lb $t0, 0($t5)         # token type
+	lb $t2, 3($t5) 	# star flag
 	
 	# Branch for test case 1
 	li $t1, 1
 	beq $t0, $t1, Test_case_1
 	
-	# Branch for test case 2
+	# Branch for test case 2 and 3
 	li $t1, 2 
-	beq $t0, $t1, test_case_2
+	beq $t0, $t1, check_star
 	
-	j exit                 # Till all the functions are made this is just a precausino
+	j exit                 # Till all the functions are made this is just a precausion
+	
+check_star:
+	beq $t2, 0, test_case_2 	# check if there's no star
+	j test_case_3
 #============================================================
 Test_case_1:
     lw $t1, 4($t5)         #   literal data in token
@@ -453,7 +458,7 @@ full_match:
 
 
 match_done:
-    jr $ra
+    j exit
 
 printMatch:
     # making copies so not to mess up original pointers
@@ -482,7 +487,7 @@ printMatch_done:
     jr $ra
 
 	
-#################################
+###########################################################3######3
 # t0 = holds input text
 # t1 = holds current input char
 # t2 = has num of char in class
@@ -530,14 +535,90 @@ char_print:
 	li $v0, 11
 	li $a0, ','
 	syscall
-	
 
 char_input_increment:
 	addi $t0, $t0, 1 	# increment the input string
 	lb $t1, 0($t0)		# continue scanning
 	j char_input_loop
 
-###################################3
+#################################################################3
+#t0 = holds first input
+#t1 = current char
+#t2 = num of char inside []
+#t4 = flag a star (0  = doesn't exist & 1 = exists)
+#t6 = length of matched char
+#t7 = holds the start of input 1
+# t8 = marks matched flag (0  = doesn't match & 1 = match)
+#s1 = holds index inside []
+#s2 = holds offset for next char
+#s3 = address of [] char
+#s4 = holds [] char
+#s5 = number of char
+#s6 = start of input
+
+
+test_case_3:
+	la $t0, InputToEvaluate
+	lb $t1, 0($t0)
+	lb $t2, 2($t5)	
+	lb $t4, 3($t5)
+	beq $t4, 0, exit	#if there's no * leave test_case_3
+
+test3_loop:
+	beq $t1, 10, exit # check for new line
+	beq $t1, 0, exit	# exit the loop when the input ends
+	li $t6, 0 		# length of matched char
+	move $t7, $t0	# start of the check
+	
+check_mark:
+	li $t8, 0 		# marks matched flag
+	li $s1, 0 		# holds index
+	
+check_matched: 
+	beq $s1, $t2, finish_mark		# finish when check all chars
+	addi $s2, $s1, 4		# offset to check next char
+	add $s3, $t5, $s2		# address of char
+	lb $s4, 0($s3)		# char in range
+	beq $s4, $t1, mark_match		# if matched mark it
+	addi $s1, $s1, 1	# increment and keep looping
+	j check_matched
+
+mark_match: 
+	li $t8, 1 		# found a match and mark it
+
+finish_mark:
+	beq $t8, 0, finish_check	# end checking for match
+	addi $t6, $t6, 1	#increment to check mark
+	addi $t0, $t0, 1	# check the second char in first input
+	lb $t1, 0($t0)		# load next input char
+	j check_mark		# loop to match next char
+	
+finish_check:
+	beq $t6, 0, check_char_increment	#increment if length of char finish
+	move $s5, $t6 	# number of char
+	move $s6, $t7	# start of input
+	
+print_check:
+	beq $s5, 0, print_comma	# stop printing if no char
+	lb $a0, 0($s6)	# load char to print
+	li $v0, 11
+	syscall
+	addi $s6, $s6, 1 	# move to next char
+	addi $s5, $s5, -1	# decrement counter
+	j print_check
+
+print_comma:
+	li $a0, ','
+	li $v0, 11
+	syscall
+	j test3_loop		#continue scanning input
+
+check_char_increment:
+	addi $t0, $t0, 1 	# increment the input string
+	lb $t1, 0($t0)		# load next char
+	j test3_loop
+	
+##############################################################3
 exit:
-	li $v0, 10	# exit elegantly
+	li $v0, 10		# exit gracefully
 	syscall
