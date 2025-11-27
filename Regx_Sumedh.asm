@@ -71,7 +71,7 @@ reset:		# Called when a token is finished building and the values need to be res
 	li $s1, 0	# Random value for keeping track of the char range literal length
 
 tokenize:	
-	beq $t3, 10, exit		# Exits the program when it finds the new line char, which is the end of the input
+	beq $t3, 10, what_to_do		# Exits the program when it finds the new line char, which is the end of the input
 	#j printChar			# Calls a jump to printchar
 	
 	beq $t3, 91, frontBracket	# Represents the token is a Char class
@@ -388,15 +388,55 @@ printTokenDone:
     li $a0, 10
     syscall
     
+    #j nextToken
     j what_to_do
-    
+  
 # ===============================================================   
 what_to_do:
-	la $t5, tokenArray     # first token
-	lb $t0, 0($t5)         # token type
-	li $t1, 1
-	beq $t0, $t1, Test_case_1
-	j exit                 # Till all the functions are made this is just a precausino
+    lb $t0, 0($t5)         # load token type (byte 0)
+
+    li $t1, 0
+    beq $t0, $t1, exit     # if type=0 = end of tokens
+
+    li $t1, 1
+    beq $t0, $t1, do_literal   # type 1 = literal or wildcard
+
+    li $t1, 2
+    beq $t0, $t1, do_charclass # type 2 = char class
+
+    j exit                 #  unknown type =exit
+
+
+do_literal:
+    lb $t2, 3($t5)    # repetition & wildcard flags
+
+    li $t3, 2
+    beq $t2, $t3, call_tc4   # if '.' wildcard 
+    
+    li $t3, 3
+    beq $t2, $t3, call_tc5   # if '.*' 
+
+    jal Test_case_1         # normal literal matcher
+    j next_token_dispatch
+
+call_tc4:
+    jal Test_case_4
+    j next_token_dispatch
+    
+call_tc5:
+    jal Test_case_5
+    j next_token_dispatch
+
+
+do_charclass:
+    jal test_case_2
+    j next_token_dispatch
+
+next_token_dispatch:
+    addi $t5, $t5, 8    # move to next token in tokenArray
+    j what_to_do
+
+
 #============================================================
 Test_case_1:
     lw $t1, 4($t5)         #   literal data in token
@@ -426,7 +466,7 @@ match_loop:
 mismatch:
     lw $t1, 4($t5)      # reset literal pointer
     li $t4, 0           # reset index to 0
-    lb $t3, 2($t5)      # *** reload literal length ***
+    lb $t3, 2($t5)      #  reload literal length 
     addi $t2, $t2, 1    # increment input pointer
     j match_loop
 
@@ -469,8 +509,101 @@ printMatch_done:
     syscall
 
     jr $ra
+#================================================
+# t0 = holds input text
+# t1 = holds current input char
+# t2 = has num of char in class
+# t3 = holds flags like negate
+#t4  = match the flag
+#t6 = holds the index counter
+#t7 = holds offset of byte
+#t8 = holds address of token
+#s0 = stores char to check
 
+test_case_2: 
+	la $t0, InputToEvaluate	# load the input text to address	
+	lb $t1, 0($t0)		# load the first input character
+	lb $t2, 2($t5)	# read token at t5
+	lb $t3, 1($t5)
+
+char_input_loop: 
+	beq $t1, 10, exit # check for new line
+	beq $t1, 0, exit	# exit the loop when the input ends
+	li $t4, 0 		# match the flag
+	li $t6, 0 		# index
+
+char_check_loop: 
+	beq $t6, $t2, char_print	#when index = token stop loop
+	addi $t7, $t6, 4	# need address of the token byte
+	add $t8, $t5, $t7		# address
+	lb $s0, 0($t8) 	# holds char to check
+	beq $s0, $t1, char_match	#compare char to input to check if they match
+	addi $t6, $t6, 1	#move to next index
+	j char_check_loop	#loop to check another char
+
+char_match:
+	li $t4, 1		# set the flag matches to 1
+	j char_print
+	
+char_print: 
+	beq $t4, 0, char_input_increment	#check if the flag is set to 0
+	
+	#print matched char
+	li $v0, 11
+	move $a0, $t1
+	syscall	
+	
+	#print comma
+	li $v0, 11
+	li $a0, ','
+	syscall
+	
+
+char_input_increment:
+	addi $t0, $t0, 1 	# increment the input string
+	lb $t1, 0($t0)		# continue scanning
+	j char_input_loop
 #=================================================
+Test_case_4:
+    la $t2, InputToEvaluate     # pointer to input string
+
+TC4_loop:
+    lb $t7, 0($t2)              # load input char
+    beqz $t7, TC4_done          # end of string = exit case
+
+    # print this character as a match
+    move $a0, $t7
+    li $v0, 11
+    syscall
+
+    # print comma
+    li $a0, ','
+    li $v0, 11
+    syscall
+
+    addi $t2, $t2, 1            # move to next char
+    j TC4_loop
+
+TC4_done:
+    jr $ra
+#=================================================
+Test_case_5:
+    la $t0, InputToEvaluate   
+
+tc5_loop:
+    lb $t1, 0($t0)            # read character
+    beqz $t1, tc5_done        # end of string
+
+    li $v0, 11                # print character
+    move $a0, $t1
+    syscall
+
+    addi $t0, $t0, 1          # next char
+    j tc5_loop
+
+tc5_done:
+    jr $ra
+#===================================================
 exit:
 	li $v0, 10
 	syscall
