@@ -2,8 +2,8 @@
 # This is the idea for the Tokenizer, which will produce computable results for evaluation.
 # We have an 8 byte Register per token, and each token will represent a difference piece of information for the token
 
-#Byte 1: Type
-#Byte 2: ^
+#Byte 1: Type (1= a 2=[])
+#Byte 2: ^ (1=^ 2=az 0=a-z)
 #Byte 3: Len (How many chars of data does this token have)
 #Byte 4: 1 represents * and 2 represents . and 3 represents .*
 #Byte 5-6 is either one of two things
@@ -71,7 +71,7 @@ reset:		# Called when a token is finished building and the values need to be res
 	li $s1, 0	# Random value for keeping track of the char range literal length
 
 tokenize:	
-	beq $t3, 10, what_to_do		# Exits the program when it finds the new line char, which is the end of the input
+	beq $t3, 10, printTokenDone		# Exits the program when it finds the new line char, which is the end of the input
 	#j printChar			# Calls a jump to printchar
 	
 	beq $t3, 91, frontBracket	# Represents the token is a Char class
@@ -407,7 +407,7 @@ what_to_do:
     j exit                 #  unknown type =exit
 
 
-do_literal:
+do_literal: # byte 1 always 1
     lb $t2, 3($t5)    # repetition & wildcard flags
      
     li $t3, 2
@@ -428,16 +428,22 @@ call_tc5:
     j next_token_dispatch
 
 
-do_charclass:
-    lb $t2, 3($t5)
+do_charclass: # byte 1 always 2
+    lb $t2, 3($t5) # byte 3 (1=* 2=. 3=.*)
+    lb $s1, 1($t5) # byte 2 (1=^ 2=xx 0=x-x) 
     
     li $t3,0
     beq $t2, $t3, call_tc2	 # if '[]'
     
-    li $t3, 1
-    beq $t2, $t3, call_tc3   # if '[]*'
+    li $t3, 2	   # if '[]*' 
+    beq $s1, $t3, call_tc3	# when byte 2 = 2 & byte 3 = 1 test case 3  
+    li $t3, 0    # if '[-]*'
+    beq $s1, $t3, call_tc6   # when byte 2 = 0 & byte 3 = 1 test case 6
     
-
+    
+    li $t3, 1
+    beq $s1, $t3, call_tc7   # if '[^-]*'
+    
 call_tc2:
     jal test_case_2
     j next_token_dispatch
@@ -445,8 +451,16 @@ call_tc2:
 call_tc3:
     jal test_case_3
     j next_token_dispatch
-
-next_token_dispatch:
+    
+call_tc6:
+    jal Test_case_6
+    j next_token_dispatch
+    
+call_tc7:
+    jal Test_case_7
+    j next_token_dispatch
+    
+next_token_dispatch: #(for test case 8 & 9 )
     addi $t5, $t5, 8    # move to next token in tokenArray
     j what_to_do
 
@@ -695,6 +709,72 @@ tc5_loop:
 tc5_done:
     jr $ra
 #===================================================
+Test_case_6:
+
+    la $t0, InputToEvaluate   # input string pointer
+
+    lb $t2, 4($t5)            # load start range from token
+    lb $t3, 5($t5)            # load end range from token
+
+tc6_loop:
+    lb $t1, 0($t0)            # read character from input
+    beqz $t1, tc6_done        # end of string?
+
+    blt $t1, $t2, tc6_skip    # if char < start, skip
+    bgt $t1, $t3, tc6_skip    # if char > end, skip
+
+    # print the matched character
+    li $v0, 11
+    move $a0, $t1
+    syscall
+
+    # print comma
+    li $v0, 11
+    li $a0, ','
+    syscall
+
+tc6_skip:
+    addi $t0, $t0, 1
+    j tc6_loop
+
+tc6_done:
+    jr $ra
+#==================================================
+Test_case_7:
+    la   $t0, InputToEvaluate   # $t0  input string
+    lb   $t2, 4($t5)            # lower bound from token (byte 4)
+    lb   $t3, 5($t5)            # upper bound from token (byte 5)
+
+tc7_loop:
+    lb   $t1, 0($t0)            # load char from input
+    beqz $t1, tc7_done          # stop at null terminator
+    beq  $t1, 10, tc7_done      # stop at newline
+
+    # if (t1 >= low && t1 <= high) then SKIP (it's inside the range)
+    blt  $t1, $t2, tc7_print   # t1 < low  then is outside = print
+    bgt  $t1, $t3, tc7_print   # t1 > high then is outside = print
+
+    # otherwise is inside range = skip printing
+    addi $t0, $t0, 1
+    j    tc7_loop
+
+tc7_print:
+    # print the character (outside the negated range)
+    li   $v0, 11
+    move $a0, $t1
+    syscall
+
+    # print comma separator
+    li   $v0, 11
+    li   $a0, ','
+    syscall
+
+    addi $t0, $t0, 1
+    j    tc7_loop
+
+tc7_done:
+    jr   $ra
+#==================================================
 exit:
 	li $v0, 10
 	syscall
