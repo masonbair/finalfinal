@@ -208,12 +208,12 @@ charClassNoStar:
 	
 #Either called printtoken
 nextToken:
-    	addi $t5, $t5, 8	# Move to the next token position
-    
-    	# Check if reached end of input
-    	beq $t3, 10, exit   # If newline, we are finished
-    	beq $t3, 0, exit    # If null terminator, we are finsihed
     	
+    	# Check if reached end of input
+    	beq $t3, 10, what_to_do   # If newline, we are finished
+    	beq $t3, 0, what_to_do    # If null terminator, we are finsihed
+    	
+    	addi $t5, $t5, 8	# Move to the next token position
     	# Advance to next character before tokenizing
     	#add $t2, $t2, $t0          	# Move to next char
     	#lb $t3, 0($t2)  		# Loads in the next value
@@ -394,21 +394,27 @@ printTokenDone:
     	li $a0, 10
     	syscall
     	
-    	#j nextToken
-    	j what_to_do
+    	j nextToken
+    	#j what_to_do
   	
 # ===============================================================   
 what_to_do:
+
     	lb $t0, 0($t5)         # load token type (byte 0)
+    	
+    	
 
     	li $t1, 0
     	beq $t0, $t1, exit     # if type=0 = end of tokens
+    	
 	
     	li $t1, 1
     	beq $t0, $t1, do_literal   # type 1 = literal or wildcard
-	
+    	
+  	
     	li $t1, 2
     	beq $t0, $t1, do_charclass # type 2 = char class
+    
 	
     	j exit                 #  unknown type =exit
 
@@ -701,12 +707,12 @@ finish_mark:
 	
 finish_check:
 	beq $t6, 0, check_char_increment	#increment if length of char finish
-	beq $s7, 0, no_comma
+	beq $s7, 0, no_commatc3
 	li $a0, ','
 	li $v0, 11
 	syscall
 
-no_comma:
+no_commatc3:
 	li $s7,1		#at least one match
 	move $s5, $t6 	# number of char
 	move $s6, $t7	# start of input
@@ -856,11 +862,11 @@ tc7_finish_group:
     beqz $t6, tc7_done   # nothing to print
 
     # print comma BEFORE token if not first
-    beqz $t8, no_commatc3
+    beqz $t8, no_comma
     li   $a0, ','
     li   $v0, 11
     syscall
-no_commatc3:
+no_comma:
 
     # print the group
 print_group:
