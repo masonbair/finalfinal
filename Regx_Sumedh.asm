@@ -1,3 +1,7 @@
+# Mason Bair
+# Savar Shrestha
+# Sumedh Joshi
+
 ## ------ TOKENIZER ----- ##
 # This is the idea for the Tokenizer, which will produce computable results for evaluation.
 # We have an 8 byte Register per token, and each token will represent a difference piece of information for the token
@@ -21,6 +25,8 @@
 	
 	expressionPrompt: .asciiz "Please enter a valid regular expression: \n"
 	evaluatePrompt: .asciiz "Please enter an expression to evaluate: \n"
+	
+	tsc9_literal: .asciiz "@kent.edu"	#for test case 9
 	
 	.align 2                    # Align to word boundary (2^2 = 4 bytes)
     	tokenArray: .space 64
@@ -288,255 +294,293 @@ printChar:
 
 
 printToken:
-    # Print "Token: "
-    li $v0, 4
-    la $a0, tokenDebugMsg
-    syscall
+	# Print "Token:  
+	 li $v0, 4
+	 la $a0, tokenDebugMsg
+	 syscall
     
-    # Print Byte 0 (Type)
-    lb $a0, 0($t5)
-    li $v0, 1          # Print integer
-    syscall
+    	# Print Byte 0 (Type)
+    	lb $a0, 0($t5)
+    	li $v0, 1          # Print integer
+    	syscall
     
-    li $v0, 11         # Print space
-    li $a0, 32
-    syscall
+	li $v0, 11         # Print space
+    	li $a0, 32
+    	syscall
     
-    # Print Byte 1 (Flags)
-    lb $a0, 1($t5)
-    li $v0, 1
-    syscall
+    	# Print Byte 1 (Flags)
+    	lb $a0, 1($t5)
+    	li $v0, 1
+    	syscall
     
-    li $v0, 11
-    li $a0, 32
-    syscall
+    	li $v0, 11
+    	li $a0, 32
+    	syscall
+    	
+    	# Print Byte 2 (Length)
+    	lb $a0, 2($t5)
+    	li $v0, 1
+    	syscall
+    	
+    	li $v0, 11
+    	li $a0, 32
+    	syscall
     
-    # Print Byte 2 (Length)
-    lb $a0, 2($t5)
-    li $v0, 1
-    syscall
-    
-    li $v0, 11
-    li $a0, 32
-    syscall
-    
-    # Print 0 for placeholder and 1 for star
-    lb $a0, 3($t5)
-    li $v0, 1
-    syscall
-    
-    li $v0, 11
-    li $a0, 32
-    syscall
-    
-     # Check for char range or literal
-    lb $t7, 0($t5)         		
-    beq $t7, 1, printLiteralString   	# If type == 1, print literal string
-    
-    # Print Byte 4-7 (Data as characters)
-    lb $a0, 4($t5)
-    li $v0, 11         # Print char
-    syscall
-    
-    li $v0, 11 		#Space
-    li $a0, 32
-    syscall
-    
-    lb $a0, 5($t5)
-    li $v0, 11
-    syscall
-    
-    li $v0, 11 		#Space
-    li $a0, 32
-    syscall
-    
-    lb $a0, 6($t5)
-    li $v0, 11         # Print char
-    syscall
-    
-    li $v0, 11 		#Space
-    li $a0, 32
-    syscall
-    
-    lb $a0, 7($t5)
-    li $v0, 11
-    syscall
-    
-    li $v0, 11 		#Space
-    li $a0, 32
-    syscall
-    
-    j printTokenDone
-
+    	# Print 0 for placeholder and 1 for star
+    	lb $a0, 3($t5)
+    	li $v0, 1
+    	syscall
+    	
+    	li $v0, 11
+    	li $a0, 32
+    	syscall
+    	
+    	 # Check for char range or literal
+    	lb $t7, 0($t5)         		
+    	beq $t7, 1, printLiteralString   	# If type == 1, print literal string
+    	
+    	# Print Byte 4-7 (Data as characters)
+    	lb $a0, 4($t5)
+    	li $v0, 11         # Print char
+    	syscall
+   	 
+    	li $v0, 11 		#Space
+    	li $a0, 32
+    	syscall
+    	
+    	lb $a0, 5($t5)
+    	li $v0, 11
+    	syscall
+    	
+    	li $v0, 11 		#Space
+    	li $a0, 32
+    	syscall
+    	
+    	lb $a0, 6($t5)
+    	li $v0, 11         # Print char
+    	syscall
+    	
+    	li $v0, 11 		#Space
+    	li $a0, 32
+    	syscall
+    	
+    	lb $a0, 7($t5)
+    	li $v0, 11
+    	syscall
+    	
+    	li $v0, 11 		#Space
+    	li $a0, 32
+    	syscall
+    	
+    	j printTokenDone
+	
         
 printLiteralString:
-    # Load pointer from bytes 4-7
-    lw $a0, 4($t5)         # Load address of literal string
-    li $v0, 4              # Print string syscall
-    syscall
-    
-    li $v0, 11             # Print space
-    li $a0, 32
-    syscall
-    
-    j printTokenDone
-    
-    
+    	# Load pointer from bytes 4-7
+    	lw $a0, 4($t5)         # Load address of literal string
+    	li $v0, 4              # Print string syscall
+    	syscall
+    	
+    	li $v0, 11             # Print space
+    	li $a0, 32
+    	syscall
+    	
+    	j printTokenDone
+    	
+    	
 printTokenDone:
-    # Print newline
-    li $v0, 11
-    li $a0, 10
-    syscall
-    
-    #j nextToken
-    j what_to_do
-  
+    	# Print newline
+    	li $v0, 11
+    	li $a0, 10
+    	syscall
+    	
+    	#j nextToken
+    	j what_to_do
+  	
 # ===============================================================   
 what_to_do:
-    lb $t0, 0($t5)         # load token type (byte 0)
+    	lb $t0, 0($t5)         # load token type (byte 0)
 
-    li $t1, 0
-    beq $t0, $t1, exit     # if type=0 = end of tokens
-
-    li $t1, 1
-    beq $t0, $t1, do_literal   # type 1 = literal or wildcard
-
-    li $t1, 2
-    beq $t0, $t1, do_charclass # type 2 = char class
-
-    j exit                 #  unknown type =exit
+    	li $t1, 0
+    	beq $t0, $t1, exit     # if type=0 = end of tokens
+	
+    	li $t1, 1
+    	beq $t0, $t1, do_literal   # type 1 = literal or wildcard
+	
+    	li $t1, 2
+    	beq $t0, $t1, do_charclass # type 2 = char class
+	
+    	j exit                 #  unknown type =exit
 
 
 do_literal: # byte 1 always 1
-    lb $t2, 3($t5)    # repetition & wildcard flags
+    	lb $t2, 3($t5)    # repetition & wildcard flags
      
-    li $t3, 2
-    beq $t2, $t3, call_tc4   # if '.' wildcard 
-    
-    li $t3, 3
-    beq $t2, $t3, call_tc5   # if '.*' 
+    	li $t3, 2
+    	beq $t2, $t3, call_tc4   # if '.' wildcard 
+    	
+    	li $t3, 3
+    	beq $t2, $t3, call_tc5   # if '.*' 
 
-    jal Test_case_1         # normal literal matcher
-    j next_token_dispatch
+    	jal Test_case_1         # normal literal matcher
+    	j next_token_dispatch
     
 call_tc4:
-    jal Test_case_4
-    j next_token_dispatch
-    
+    	jal Test_case_4
+    	j next_token_dispatch
+    	
 call_tc5:
-    jal Test_case_5
-    j next_token_dispatch
+    	jal Test_case_5
+    	j next_token_dispatch
 
 
 do_charclass: # byte 1 always 2
-    lb $t2, 3($t5) # byte 3 (1=* 2=. 3=.*)
-    lb $s1, 1($t5) # byte 2 (1=^ 2=xx 0=x-x) 
-    
-    li $t3,0
-    beq $t2, $t3, call_tc2	 # if '[]'
-    
-    li $t3, 2	   # if '[]*' 
-    beq $s1, $t3, call_tc3	# when byte 2 = 2 & byte 3 = 1 test case 3  
-    li $t3, 0    # if '[-]*'
-    beq $s1, $t3, call_tc6   # when byte 2 = 0 & byte 3 = 1 test case 6
-    
-    
-    li $t3, 1
-    beq $s1, $t3, call_tc7   # if '[^-]*'
+	lb $t2, 3($t5) # byte 3 (1=* 2=. 3=.*)
+	lb $s1, 1($t5) # byte 2 (1=^ 2=xx 0=x-x) 
+	
+	#Test case 8
+	lb $t6, 3($t5)	#load *flag
+	li $t7, 1		# marked 1 = *
+	bne $t6, $t7, check_tc9		#check for *
+	addi $t0, $t5, 8		#load next token
+	lb $t8, 0($t0)	
+	li $t9, 1		# 1 = literal
+	bne $t8, $t9, check_tc9	# check for literal
+	jal test_case_8
+	j next_token_dispatch
+
+check_tc9:
+	lb $t6, 3($t5)	#load *flag
+	li $t7, 1		# marked 1 = *
+	bne $t6, $t7, other_charclass		#check for *
+	addi $t0, $t5, 8		#load next token
+	lb $t8, 0($t0)	
+	li $t9, 1		# 1 = literal
+	bne $t8, $t9, other_charclass	# check for literal
+	lw $t1, 4($t0)		# literal string
+	lb $t2, 0($t1)		#first char of literal
+	li $t3, '@'
+	bne $t2, $t3, other_charclass	#check literal start w/ @
+	jal test_case_9
+	j next_token_dispatch
+	
+other_charclass:
+    	li $t3,0
+    	beq $t2, $t3, call_tc2	 # if '[]'
+    	
+    	li $t3, 2	   # if '[]*' 
+    	beq $s1, $t3, call_tc3	# when byte 2 = 2 & byte 3 = 1 test case 3  
+    	li $t3, 0    # if '[-]*'
+    	beq $s1, $t3, call_tc6   # when byte 2 = 0 & byte 3 = 1 test case 6
+    	
+    	li $t3, 1
+    	beq $s1, $t3, call_tc7   # if '[^-]*'
+    	
+    	j next_token_dispatch
     
 call_tc2:
-    jal test_case_2
-    j next_token_dispatch
+    	jal test_case_2
+    	j next_token_dispatch
 
 call_tc3:
-    jal test_case_3
-    j next_token_dispatch
+    	jal test_case_3
+    	j next_token_dispatch
     
 call_tc6:
-    jal Test_case_6
-    j next_token_dispatch
+    	jal Test_case_6
+    	j next_token_dispatch
     
 call_tc7:
-    jal Test_case_7
-    j next_token_dispatch
+    	jal Test_case_7
+    	j next_token_dispatch
     
 next_token_dispatch: #(for test case 8 & 9 )
-    addi $t5, $t5, 8    # move to next token in tokenArray
-    j what_to_do
+    	addi $t5, $t5, 8    # move to next token in tokenArray
+    	j what_to_do
 
 
 #============================================================
 Test_case_1:
-    lw $t1, 4($t5)         #   literal data in token
-    la $t2, InputToEvaluate  
-    lb $t3, 2($t5)         # token length
-
-    li $t4, 0              # index inside literal
-    li $t6, 0              # index inside input
+    	lw $t1, 4($t5)         #   literal data in token
+    	la $t2, InputToEvaluate  
+    	lb $t3, 2($t5)         # token length
+	
+    	li $t4, 0              # index inside literal
+    	li $t6, 0              # index inside input
+	li $s7, 0       # firstMatchFlag = 0 (no matches yet)
 
 match_loop:
-    lb $t7, 0($t2)         # load next input char
-    beqz $t7, match_done   # end of input → stop
+    	lb $t7, 0($t2)         # load next input char
+    	beqz $t7, match_done   # end of input → stop
+	
+    	lb $t8, 0($t1)         # load token character
 
-    lb $t8, 0($t1)         # load token character
-
-    bne $t7, $t8, mismatch # branch to mis match if t7 and 8 are nnot same
+    	bne $t7, $t8, mismatch # branch to mis match if t7 and 8 are nnot same
 	 # else increment
-    addi $t4, $t4, 1        # literal index++
-    addi $t2, $t2, 1        # input pointer++
-    addi $t1, $t1, 1        # token pointer++
+    	addi $t4, $t4, 1        # literal index++
+    	addi $t2, $t2, 1        # input pointer++
+    	addi $t1, $t1, 1        # token pointer++
 
  # if all literals match jump to full match
-    beq  $t4, $t3, full_match
+    	beq  $t4, $t3, full_match
 
-    j match_loop
+    	j match_loop
 
 mismatch:
-    lw $t1, 4($t5)      # reset literal pointer
-    li $t4, 0           # reset index to 0
-    lb $t3, 2($t5)      #  reload literal length 
-    addi $t2, $t2, 1    # increment input pointer
-    j match_loop
+    	lw $t1, 4($t5)      # reset literal pointer
+    	li $t4, 0           # reset index to 0
+    	lb $t3, 2($t5)      #  reload literal length 
+    	addi $t2, $t2, 1    # increment input pointer
+    	j match_loop
 
 
 full_match:
-    jal printMatch
+    	jal printMatch
 
-    lw $t1, 4($t5)      # reset pointer to literal start
-    li $t4, 0           # reset literal index
-    lb $t3, 2($t5)      # reload literal length
-
-    j match_loop
+    	lw $t1, 4($t5)      # reset pointer to literal start
+    	li $t4, 0           # reset literal index
+    	lb $t3, 2($t5)      # reload literal length
+	
+   	 j match_loop
 
 
 match_done:
-    jr $ra
+    	jr $ra
 
 printMatch:
-    # making copies so not to mess up original pointers
-    move $t8, $t2      # end pointer
-    move $t9, $t3      # length
+    # If this is NOT the first match, print the comma first
+    bnez $s7, print_commatc1
 
-    sub $t8, $t8, $t9  # t8 = start of matched substring
+    # Mark that a match has occurred
+    li $s7, 1
+    j printMatch_continue
 
-printMatch_loop:
-    beqz $t9, printMatch_done   # finished printing substring
-
-    lb $a0, 0($t8)      # print each character
-    li $v0, 11
-    syscall
-
-    addi $t8, $t8, 1    # next input char
-    addi $t9, $t9, -1   # reduce length
-    j printMatch_loop
-
-printMatch_done:
-    # Print comma
+print_commatc1:
     li $a0, ','
     li $v0, 11
     syscall
 
+printMatch_continue:
+    # Restore match start position
+    move $t8, $t2
+    move $t9, $t3
+    sub $t8, $t8, $t9    # start = end - length
+
+printMatch_loop:
+    beqz $t9, printMatch_done
+
+    lb $a0, 0($t8)
+    li $v0, 11
+    syscall
+
+    addi $t8, $t8, 1
+    addi $t9, $t9, -1
+    j printMatch_loop
+
+printMatch_done:
     jr $ra
+
+
 #================================================
 # t0 = holds input text
 # t1 = holds current input char
@@ -553,6 +597,7 @@ test_case_2:
 	lb $t1, 0($t0)		# load the first input character
 	lb $t2, 2($t5)	# read token at t5
 	lb $t3, 1($t5)
+	li $s7, 0     # firstMatchFlag = 0 (no output printed yet)
 
 char_input_loop: 
 	beq $t1, 10, exit # check for new line
@@ -573,18 +618,28 @@ char_match:
 	li $t4, 1		# set the flag matches to 1
 	j char_print
 	
-char_print: 
-	beq $t4, 0, char_input_increment	#check if the flag is set to 0
-	
-	#print matched char
-	li $v0, 11
-	move $a0, $t1
-	syscall	
-	
-	#print comma
-	li $v0, 11
-	li $a0, ','
-	syscall
+char_print:
+    beq $t4, 0, char_input_increment   # if not matched skip
+
+    # If this is not the first match, print a comma BEFORE character
+    bnez $s7, print_commatc2
+
+    # Otherwise mark first match
+    li $s7, 1
+    j print_char
+
+print_commatc2:
+    li $v0, 11
+    li $a0, ','
+    syscall
+    j print_char
+
+print_char:
+    li $v0, 11
+    move $a0, $t1
+    syscall
+
+    j char_input_increment
 	
 
 char_input_increment:
@@ -613,7 +668,7 @@ test_case_3:
 	lb $t2, 2($t5)	
 	lb $t4, 3($t5)
 	beq $t4, 0, exit	#if there's no * leave test_case_3
-
+	
 test3_loop:
 	beq $t1, 10, exit # check for new line
 	beq $t1, 0, exit	# exit the loop when the input ends
@@ -649,7 +704,7 @@ finish_check:
 	move $s6, $t7	# start of input
 	
 print_check:
-	beq $s5, 0, print_comma	# stop printing if no char
+	beq $s5, 0, print_commatc3	# stop printing if no char
 	lb $a0, 0($s6)	# load char to print
 	li $v0, 11
 	syscall
@@ -657,7 +712,7 @@ print_check:
 	addi $s5, $s5, -1	# decrement counter
 	j print_check
 
-print_comma:
+print_commatc3:
 	li $a0, ','
 	li $v0, 11
 	syscall
@@ -671,109 +726,320 @@ check_char_increment:
 #=====================================================
 Test_case_4:
     la $t2, InputToEvaluate     # pointer to input string
+    li $t8, 0                   # flag: 0 = first item, 1 = already printed something
 
 TC4_loop:
-    lb $t7, 0($t2)              # load input char
-    beqz $t7, TC4_done          # end of string = exit case
+    lb $t7, 0($t2)
+    beqz $t7, TC4_done      # end of string
 
-    # print this character as a match
+    li $t0, 10              # ASCII newline (\n)
+    beq $t7, $t0, Skip_chartc4
+
+    li $t0, 13              # ASCII carriage return (\r)
+    beq $t7, $t0, Skip_chartc4
+
+    # If not first printed char, print comma
+    beqz $t8, Print_chartc4
+    li $a0, ','
+    li $v0, 11
+    syscall
+
+Print_chartc4:
     move $a0, $t7
     li $v0, 11
     syscall
 
-    # print comma
-    li $a0, ','
-    li $v0, 11
-    syscall
+    li $t8, 1               # mark we printed a valid char
 
-    addi $t2, $t2, 1            # move to next char
+Skip_chartc4:
+    addi $t2, $t2, 1
     j TC4_loop
 
 TC4_done:
     jr $ra
+
+
 #=================================================
 Test_case_5:
-    la $t0, InputToEvaluate   
+    	la $t0, InputToEvaluate   
 
 tc5_loop:
-    lb $t1, 0($t0)            # read character
-    beqz $t1, tc5_done        # end of string
+    	lb $t1, 0($t0)            # read character
+    	beqz $t1, tc5_done        # end of string
+	
+    	li $v0, 11                # print character
+    	move $a0, $t1
+    	syscall
 
-    li $v0, 11                # print character
-    move $a0, $t1
-    syscall
-
-    addi $t0, $t0, 1          # next char
-    j tc5_loop
+    	addi $t0, $t0, 1          # next char
+    	j tc5_loop
 
 tc5_done:
-    jr $ra
+    	jr $ra
 #===================================================
 Test_case_6:
 
-    la $t0, InputToEvaluate   # input string pointer
-
-    lb $t2, 4($t5)            # load start range from token
-    lb $t3, 5($t5)            # load end range from token
+    la $t0, InputToEvaluate      # input string pointer
+    lb $t2, 4($t5)               # start range
+    lb $t3, 5($t5)               # end range
+    li $t8, 0                    # flag: printed at least one character?
 
 tc6_loop:
-    lb $t1, 0($t0)            # read character from input
-    beqz $t1, tc6_done        # end of string?
+    lb $t1, 0($t0)               # current char
+    beqz $t1, tc6_done           # null terminator → stop
 
-    blt $t1, $t2, tc6_skip    # if char < start, skip
-    bgt $t1, $t3, tc6_skip    # if char > end, skip
+    # ignore newline '\n' (10) and carriage return '\r' (13)
+    li $t9, 10
+    beq $t1, $t9, tc6_next
+    li $t9, 13
+    beq $t1, $t9, tc6_next
 
-    # print the matched character
-    li $v0, 11
-    move $a0, $t1
-    syscall
+    # check if in range
+    blt $t1, $t2, tc6_next
+    bgt $t1, $t3, tc6_next
 
-    # print comma
-    li $v0, 11
+    # If not first printed value → print comma first
+    beqz $t8, Print_tc6
     li $a0, ','
+    li $v0, 11
     syscall
 
-tc6_skip:
+Print_tc6:
+    move $a0, $t1
+    li $v0, 11
+    syscall
+
+    li $t8, 1                    # mark printed
+
+tc6_next:
     addi $t0, $t0, 1
     j tc6_loop
 
 tc6_done:
     jr $ra
+
 #==================================================
 Test_case_7:
-    la   $t0, InputToEvaluate   # $t0  input string
-    lb   $t2, 4($t5)            # lower bound from token (byte 4)
-    lb   $t3, 5($t5)            # upper bound from token (byte 5)
+    la   $t0, InputToEvaluate
+    lb   $t2, 4($t5)
+    lb   $t3, 5($t5)
+
+    li   $t8, 0         # printed token flag
+    li   $t6, 0         # group length
+    move $s0, $t0       # start of current group
 
 tc7_loop:
-    lb   $t1, 0($t0)            # load char from input
-    beqz $t1, tc7_done          # stop at null terminator
-    beq  $t1, 10, tc7_done      # stop at newline
+    lb   $t1, 0($t0)
+    beqz $t1, tc7_finish_group
+    beq  $t1, 10, tc7_finish_group
 
-    # if (t1 >= low && t1 <= high) then SKIP (it's inside the range)
-    blt  $t1, $t2, tc7_print   # t1 < low  then is outside = print
-    bgt  $t1, $t3, tc7_print   # t1 > high then is outside = print
+    blt  $t1, $t2, tc7_add    # outside below = match
+    bgt  $t1, $t3, tc7_add    # outside above = match
 
-    # otherwise is inside range = skip printing
+    # inside range = break group if one exists
+    bnez $t6, tc7_finish_group
+    addi $t0, $t0, 1
+    move $s0, $t0
+    j    tc7_loop
+
+tc7_add:
+    addi $t6, $t6, 1
     addi $t0, $t0, 1
     j    tc7_loop
 
-tc7_print:
-    # print the character (outside the negated range)
-    li   $v0, 11
-    move $a0, $t1
-    syscall
+tc7_finish_group:
+    beqz $t6, tc7_done   # nothing to print
 
-    # print comma separator
-    li   $v0, 11
+    # print comma BEFORE token if not first
+    beqz $t8, no_comma
     li   $a0, ','
+    li   $v0, 11
+    syscall
+no_comma:
+
+    # print the group
+print_group:
+    beqz $t6, end_group
+
+    lb   $a0, 0($s0)
+    li   $v0, 11
     syscall
 
-    addi $t0, $t0, 1
-    j    tc7_loop
+    addi $s0, $s0, 1
+    addi $t6, $t6, -1
+    j print_group
+
+end_group:
+    li $t8, 1
+
+    move $s0, $t0
+    j tc7_loop
 
 tc7_done:
-    jr   $ra
+    jr $ra
+
+#============================================================
+test_case_8:
+	la $t0, InputToEvaluate	#input string
+	
+tc8_loop:
+	lb $t1, 0($t0)		# load cur input char
+	beq $t1, 0, tc8_finish		#exit the loop when input ends
+	beq $t1, 10, tc8_finish		#check for new line
+	move $t2, $t0		# start of the check
+	li $t6, 0		#length of matched char
+	j tc8_star
+	
+tc8_star:
+	lb $t1, 0($t2)		#load current char
+	beq $t1, 0, tc8_after_star		# exit the loop when input ends
+	beq $t1, 10, tc8_after_star	# check for new line
+	li $t3, 'A'	#Upper case lower bound A
+	li $t4, 'Z'	# Upper case upper bound Z
+	blt $t1, $t3, tc8_not_upper	# exit if char < A
+	ble $t1, $t4, tc8_accept	# exit if char > z
+
+tc8_not_upper:
+	li $t3, 'a'	#Lower case lower bound a
+	li $t4, 'z'	# Lower case upper bound z
+	blt $t1, $t3, tc8_after_star	# exit if char < A
+	bgt $t1, $t4, tc8_after_star	# exit if char > z
+
+tc8_accept:
+	addi $t6, $t6, 1	# counter
+	addi $t2, $t2, 1	#increment
+	j tc8_star
+	
+tc8_after_star:
+	addi $t8, $t5, 8	#literal token
+	lw $t9, 4($t8)	#literal string
+	lb $s0, 2($t8)	# length of literal
+	move $s1, $t2	#literal start
+	li $s2, 0		#index
+	
+tc8_literal:
+	beq $s2, $s0,tc8_match	#mathced all char
+	lb $a0, 0($s1)		#input char
+	lb $a1, 0($t9)	# literal char
+	bne $a0, $a1, tc8_increment	#check mismatch
+	addi $s1, $s1, 1	#increment input
+	addi $t9, $t9, 1	#increment literal
+	addi $s2, $s2, 1 	#increment literal index
+	j tc8_literal
+	
+tc8_match:
+	move $s3, $t0	# print start input
+	add $s4, $t6, $s0		# print length 
+	 
+tc8_print:
+	beq $s4, 0, tc8_print_comma
+	
+	lb $a0, 0($s3)	# load char to print
+	li $v0, 11
+	syscall
+	
+	addi $s3, $s3, 1	#increment char
+	addi $s4, $s4, -1	# decrement counter
+	j tc8_print
+
+tc8_print_comma:
+	li   $v0, 11
+    	li   $a0, ','
+    	syscall
+
+tc8_increment:
+	addi $t0, $t0, 1 	#increment to next string
+	j tc8_loop
+	
+tc8_finish:
+	jr $ra	
+
+#============================================================
+test_case_9:
+	la $t0, InputToEvaluate	#input string
+
+tc9_loop:
+	lb $t1, 0($t0)		# load cur input char
+	beq $t1, 0, tc9_finish		#exit the loop when input ends
+	beq $t1, 10, tc9_finish		#check for new line
+	move $t2, $t0		# start of the check
+	li $t6, 0		#length of matched char
+
+tc9_star:
+	lb $t1, 0($t2)		#load current char
+	beq $t1, 0, tc9_after_star		# exit the loop when input ends
+	beq $t1, 10, tc9_after_star	# check for new line
+	li $t3, 'A'	#Upper case lower bound A
+	li $t4, 'Z'	# Upper case upper bound Z
+	blt $t1, $t3, tc9_not_upper	# exit if char < A
+	ble $t1, $t4, tc9_accept	# exit if char > z
+
+tc9_not_upper:
+	li $t3, 'a'	#Lower case lower bound a
+	li $t4, 'z'	# Lower case upper bound z
+	blt $t1, $t3, tc9_after_star	# exit if char < A
+	bgt $t1, $t4, tc9_after_star	# exit if char > z
+
+tc9_accept:
+	addi $t6, $t6, 1	# counter
+	addi $t2, $t2, 1	#increment
+	j tc9_star
+	
+#tc9_star:
+#	lb $t1, 0($t2)		#load current char
+#	beq $t1, 10, tc9_after_star	# check for new line
+#	beq $t1, 0, tc9_after_star		# exit the loop when input ends
+#	lb $t3, 4($t5)	#lower bound A
+#	lb $t4, 5($t5)	# upper bound z
+#	blt $t1, $t3, tc9_after_star	# exit if char < A
+#	bgt $t1, $t4, tc9_after_star	# exit if char > z
+#	addi $t6, $t6, 1	# counter
+#	addi $t2, $t2, 1	#increment
+#	j tc9_star
+	
+tc9_after_star:
+	la $s4, tsc9_literal	# loads "@kent.edu"
+	move $s3, $t2	#literal match
+	li $s5, 9		#length of char
+	li $s6, 0 		#literal index
+	
+tc9_literal:
+	beq $s6, $s5,tc9_match	#mathced all char
+	lb $a0, 0($s3)	#input literal
+	lb $a1, 0($s4)		# literal char
+	bne $a0, $a1, tc9_increment	#check mismatch
+	addi $s3, $s3, 1	#increment literal match
+	addi $s4, $s4, 1	#increment "@kent.edu"
+	addi $s6, $s6, 1 	#increment literal index
+	j tc9_literal
+	
+tc9_match:
+	move $s7, $t0	# print start input
+	add $t9, $t6, $s5		# print letters + literal
+
+tc9_print:
+	beq $t9, 0, tc9_print_comma
+	
+	lb $a0, 0($s7)	# load char to print
+	li $v0, 11
+	syscall
+	
+	addi $s7, $s7, 1	#increment char
+	addi $t9, $t9, -1	# decrement comma counter
+	j tc9_print
+
+tc9_print_comma:
+	li   $v0, 11
+    	li   $a0, ','
+    	syscall
+
+tc9_increment:
+	addi $t0, $t0, 1 	#increment to next string
+	j tc9_loop
+	
+tc9_finish:
+	jr $ra
+	
 #==================================================
 exit:
 	li $v0, 10
