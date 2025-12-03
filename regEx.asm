@@ -408,12 +408,14 @@ printTokenDone:
 what_to_do:
 
     	lb $t0, 0($t5)         # load token type (byte 0)
-    	
-    	
+    		
 
     	li $t1, 0
     	beq $t0, $t1, exit     # if type=0 = end of tokens
+    
     	
+    	li $t1, 2
+    	beq $a3, $t1, run_tc8
 	
     	li $t1, 1
     	beq $t0, $t1, do_literal   # type 1 = literal or wildcard
@@ -914,11 +916,19 @@ test_case_8:
     	# clear buffer write indexes
     	li  $s6, 0          # buffer1 index
     	li  $s7, 0          # buffer2 index
+    	
+    	   li $a0, 10
+    	li $v0, 2
+    	syscall
 
 tc8_main_loop:
     	lb  $t1, 0($t0)
     	beq $t1, 0, tc8_done
     	beq $t1, 10, tc8_done
+    	
+    	    	li $a0, 10
+    	li $v0, 2
+    	syscall
 
     	move $t2, $t0       # t2 = scan pointer
     	li   $t3, 0         # t3 = count of [A-z]* chars
@@ -948,6 +958,10 @@ tc8_after_star:
     	addi $t8, $t5, 8         # token1 address
     	lb   $t9, 2($t8)         # literal length
     	lw   $s0, 4($t8)         # literal pointer
+    	
+    	    	li $a0, 11
+    	li $v0, 2
+    	syscall
 	
     	move $s1, $t2           # input pointer for literal
     	li   $s2, 0             # literal index
