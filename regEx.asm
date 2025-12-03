@@ -63,8 +63,8 @@ main:
 	move $t0, $a0			# Saves the a0 address (The string address) into t0
 	syscall
 	
-
-
+	li $a3, 1		# REPRESENTS THE NUMBER OF TOKENS THAT ARE CREATED
+	
 	li $t0, 1			# Represents the value of 1, when we go through a loop we go to the next one by 1
 	
 	# Values for the regex input
@@ -217,6 +217,8 @@ nextToken:
     	# Check if reached end of input
     	beq $t3, 10, what_to_do   # If newline, we are finished
     	beq $t3, 0, what_to_do    # If null terminator, we are finsihed
+    	
+    	add $a3, $a3, $t0	# If there is nother token, add a plus one to the register that keeps track of the # of tokens
     	
     	addi $t5, $t5, 8	# Move to the next token position
     	# Advance to next character before tokenizing
