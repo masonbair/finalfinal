@@ -412,6 +412,9 @@ what_to_do:
 
     	li $t1, 0
     	beq $t0, $t1, exit     # if type=0 = end of tokens
+    	
+    	li $t1, 2
+    	beq $a3, $t1, run_tc8
     
     	
     	li $t1, 2
@@ -467,11 +470,14 @@ do_charclass:
 
 check_tc8_token1:
     beq $t1, $t3, run_tc8
-    j other_charclass
+    j check_tc9             # <--- FIX: try TC9 next
+
 
 run_tc8:
-    	jal test_case_8
-    	j next_token_dispatch
+ 
+    jal test_case_8
+    j next_token_dispatch
+
 
     # TEST CASE 9:
 check_tc9:
@@ -479,15 +485,19 @@ check_tc9:
     	j other_charclass
 
 check_tc9_literal_start:
-    	lw $t4, 4($t0)
-    	lb $t4, 0($t4)
-    	li $t5, '@'
-    	beq $t4, $t5, run_tc9
-    	j other_charclass
+    lw $t4, 4($t0)        # t4 = pointer to literal string
+    lb $t4, 0($t4)        # t4 = first byte of that literal
+    li $t6, '@'           # use t6 as temp, do NOT overwrite t5
+    beq $t4, $t6, run_tc9
+    j other_charclass
+
+
 
 run_tc9:
-    	jal test_case_9
-    	j next_token_dispatch
+    addi $t5, $t5, 8      # move to literal token
+    jal test_case_9
+    j next_token_dispatch
+
 	
 other_charclass:
     	li $t3,0
@@ -910,234 +920,241 @@ tc7_done:
 
 #============================================================
 test_case_8:
-    	# t0 = input pointer
-    	la  $t0, InputToEvaluate
-
-    	# clear buffer write indexes
-    	li  $s6, 0          # buffer1 index
-    	li  $s7, 0          # buffer2 index
-    	
-    	   li $a0, 10
-    	li $v0, 2
-    	syscall
+    la  $t0, InputToEvaluate
+    li  $s6, 0       # buffer1 index
+    li  $s7, 0       # buffer2 index
 
 tc8_main_loop:
-    	lb  $t1, 0($t0)
-    	beq $t1, 0, tc8_done
-    	beq $t1, 10, tc8_done
-    	
-    	    	li $a0, 10
-    	li $v0, 2
-    	syscall
+    lb  $t1, 0($t0)		#load the current input char
+    beq $t1, 0, tc8_done
+    beq $t1, 10, tc8_done
 
-    	move $t2, $t0       # t2 = scan pointer
-    	li   $t3, 0         # t3 = count of [A-z]* chars
+    move $t2, $t0      # pointer for scanning
+    li   $t3, 0        # count of [A-z]* chars
 
-# ---------- MATCH [A-z]* ----------
+
 tc8_star_loop:
-    	lb  $t4, 0($t2)
-    	beq $t4, 0, tc8_after_star
-    	beq $t4, 10, tc8_after_star
+    lb  $t4, 0($t2)		# reads the next char
+    beq $t4, 0, tc8_after_star
+    beq $t4, 10, tc8_after_star
 
-    	# Check A-Z
-    	blt $t4, 'A', tc8_check_lower
-    	ble $t4, 'Z', tc8_accept_char
-	
+    blt $t4, 'A', tc8_check_lower # < 'A'? not uppercase
+    ble $t4, 'Z', tc8_take        # <= 'Z'? uppercase → accept
+
 tc8_check_lower:
-    	# Check a-z
-    	blt $t4, 'a', tc8_after_star
-    	bgt $t4, 'z', tc8_after_star
+    blt $t4, 'a', tc8_after_star  # < 'a'? not lowercase
+    bgt $t4, 'z', tc8_after_star  # > 'z'? not lowercase
 
-tc8_accept_char:
-    	addi $t3, $t3, 1
-    	addi $t2, $t2, 1
-    	j    tc8_star_loop
 
-# ---------- CHECK LITERAL ".edu" ----------
+tc8_take:
+    addi $t3, $t3, 1
+    addi $t2, $t2, 1
+    j    tc8_star_loop
+
 tc8_after_star:
-    	addi $t8, $t5, 8         # token1 address
-    	lb   $t9, 2($t8)         # literal length
-    	lw   $s0, 4($t8)         # literal pointer
-    	
-    	    	li $a0, 11
-    	li $v0, 2
-    	syscall
-	
-    	move $s1, $t2           # input pointer for literal
-    	li   $s2, 0             # literal index
-	
-tc8_literal_check:
-    	beq  $s2, $t9, tc8_match_found  # matched entire literal
+    addi $t8, $t5, 8       # next token
+    lb   $t9, 2($t8)
+    lw   $s0, 4($t8)
 
-    	lb   $s3, 0($s1)
-    	lb   $s4, 0($s0)
-    	bne  $s3, $s4, tc8_advance_input
+    move $s1, $t2
+    li   $s2, 0
 
-    	addi $s1, $s1, 1
-    	addi $s0, $s0, 1
-    	addi $s2, $s2, 1
-    	j    tc8_literal_check
+tc8_litcheck:
+    beq $s2, $t9, tc8_match		#if match ".edu"
 
-# literal did not match
-tc8_advance_input:
-    	addi $t0, $t0, 1
-    	j    tc8_main_loop
+    lb $s3, 0($s1)
+    lb $s4, 0($s0)
+    bne $s3, $s4, tc8_nomatch	#if mismatched
 
-tc8_match_found:
-    	# s5 = total length = token1-length + literal-length
-    	add  $s5, $t3, $t9
+    addi $s1, $s1, 1
+    addi $s0, $s0, 1
+    addi $s2, $s2, 1
+    j    tc8_litcheck
 
-    	# s3 = print start pointer
-    	move $s3, $t0
+tc8_nomatch:
+    addi $t0, $t0, 1		#next input /// I think the problem is here
+    j    tc8_main_loop
 
-# -write to buffer 1
-tc8_write_buf1:
-    	beq $t3, 0, tc8_write_buf2
+tc8_match:
+    move $s3, $t0   # start of match
 
-    	lb  $t4, 0($s3)
-    	sb  $t4, buffer1($s6)
-    	addi $s6, $s6, 1
-    	addi $s3, $s3, 1
-    	addi $t3, $t3, -1
-    	j   tc8_write_buf1
+# write [A-z]* into buffer1
+tc8_wb1:
+    beq $t3, 0, tc8_wb2           # stop if no letters left
+    lb  $t4, 0($s3)               # load letter
+    sb  $t4, buffer1($s6)         # store in buffer1
+    addi $s6, $s6, 1              # bump index
+    addi $s3, $s3, 1
+    addi $t3, $t3, -1
+    j    tc8_wb1
 
-# write to buffer 2
-tc8_write_buf2:
-    	beq $t9, 0, tc8_advance_after_match
-	
-    	lb  $t4, 0($s1)
-    	sb  $t4, buffer2($s7)
-    	addi $s7, $s7, 1
-    	addi $s1, $s1, 1
-    	addi $t9, $t9, -1
-    	j   tc8_write_buf2
+# write ".edu" into buffer2
+tc8_wb2:
+    beq $t9, 0, tc8_after_match
+    lb $t4, 0($s1)
+    sb $t4, buffer2($s7)
+    addi $s7, $s7, 1
+    addi $s1, $s1, 1
+    addi $t9, $t9, -1
+    j    tc8_wb2
 
-tc8_advance_after_match:
-    	addi $t0, $t0, 1
-    	j    tc8_main_loop
-	
+tc8_after_match:
+    addi $t0, $t0, 1
+    j    tc8_main_loop
+
 tc8_done:
-    	jr $ra
-	
+    sb $zero, buffer1($s6)
+    sb $zero, buffer2($s7)
+
+    # combine into buffer3
+    la $t0, buffer1
+    la $t1, buffer3
+tc8_cp1:
+    lb $t3, 0($t0)
+    beqz $t3, tc8_cp2
+    sb $t3, 0($t1)
+    addi $t0, $t0, 1
+    addi $t1, $t1, 1
+    j tc8_cp1
+
+tc8_cp2:
+    la $t0, buffer2
+tc8_cp2_loop:
+    lb $t3, 0($t0)
+    beqz $t3, tc8_print
+    sb $t3, 0($t1)
+    addi $t0, $t0, 1
+    addi $t1, $t1, 1
+    j tc8_cp2_loop
+
+tc8_print:
+    sb $zero, 0($t1)
+    la $a0, buffer3
+    li $v0, 4
+    syscall
+    jr $ra		# end of function
+
+
 
 #============================================================
 
 test_case_9:
-    	la  $t0, InputToEvaluate
-
-    	li  $s6, 0       # buffer1 index
-    	li  $s7, 0       # buffer2 index
+    la  $t0, InputToEvaluate
+    li  $s6, 0       # buffer1 index
+    li  $s7, 0       # buffer2 index
 
 tc9_main:
-    	lb  $t1, 0($t0)
-    	beq $t1, 0, tc9_done
-    	beq $t1, 10, tc9_done
+    lb  $t1, 0($t0)
+    beq $t1, 0, tc9_done
+    beq $t1, 10, tc9_done
 
-    	move $t2, $t0
-    	li   $t3, 0      # count of [A-z]* chars
+    move $t2, $t0
+    li   $t3, 0     # count of [A-z]* chars
 
-# match [A-z]* 
+# match [A-z]*
 tc9_star:
-    	lb  $t4, 0($t2)
-    	beq $t4, 0, tc9_after_star
-    	beq $t4, 10, tc9_after_star
+    lb  $t4, 0($t2)
+    beq $t4, 0, tc9_after_star
+    beq $t4, 10, tc9_after_star
 
-    	blt $t4, 'A', tc9_lower
-    	ble $t4, 'Z', tc9_accept
+    blt $t4, 'A', tc9_lower
+    ble $t4, 'Z', tc9_accept
 tc9_lower:
-    	blt $t4, 'a', tc9_after_star
-    	bgt $t4, 'z', tc9_after_star
+    blt $t4, 'a', tc9_after_star
+    bgt $t4, 'z', tc9_after_star
 
 tc9_accept:
-    	addi $t3, $t3, 1
-    	addi $t2, $t2, 1
-    	j    tc9_star
+    addi $t3, $t3, 1
+    addi $t2, $t2, 1
+    j    tc9_star
 
-# check for "@kent.edu" 
+# literal "@kent.edu"
 tc9_after_star:
-    	addi $t8, $t5, 8
-    	lb   $t9, 2($t8)      # literal length
-    	lw   $s0, 4($t8)      # literal pointer
+    addi $t8, $t5, 8
+    lb   $t9, 2($t8)
+    lw   $s0, 4($t8)
 
-    	move $s1, $t2
-    	li   $s2, 0
+    move $s1, $t2
+    li   $s2, 0
 
 tc9_lit:
-    	beq $s2, $t9, tc9_match
+    beq $s2, $t9, tc9_match
 
-    	lb  $s3, 0($s1)
-    	lb  $s4, 0($s0)
-    	bne $s3, $s4, tc9_advance
+    lb $s3, 0($s1)
+    lb $s4, 0($s0)
+    bne $s3, $s4, tc9_nomatch
 
-    	addi $s1, $s1, 1
-    	addi $s0, $s0, 1
-    	addi $s2, $s2, 1
-    	j    tc9_lit
+    addi $s1, $s1, 1
+    addi $s0, $s0, 1
+    addi $s2, $s2, 1
+    j    tc9_lit
 
-tc9_advance:
-    	addi $t0, $t0, 1
-    	j    tc9_main
+tc9_nomatch:
+    addi $t0, $t0, 1
+    j    tc9_main
 
-# -matches
+# MATCH FOUND
 tc9_match:
-    	add $s5, $t3, $t9
-    	move $s3, $t0
+    move $s3, $t0
 
-# write token1 match → buffer1
-tc9_write_buf1:
-    	beq $t3, 0, tc9_write_buf2
-    	lb  $t4, 0($s3)
-    	sb  $t4, buffer1($s6)
-    	addi $s6, $s6, 1
-    	addi $s3, $s3, 1
-    	addi $t3, $t3, -1
-    	j    tc9_write_buf1
+# write letters into buffer1
+tc9_wb1:
+    beq $t3, 0, tc9_wb2
+    lb $t4, 0($s3)
+    sb $t4, buffer1($s6)
+    addi $s6, $s6, 1
+    addi $s3, $s3, 1
+    addi $t3, $t3, -1
+    j    tc9_wb1
 
-# write literal → buffer2
-tc9_write_buf2:
-    	beq $t9, 0, tc9_next
-    	lb  $t4, 0($s1)
-    	sb  $t4, buffer2($s7)
-    	addi $s7, $s7, 1
-    	addi $s1, $s1, 1
-    	addi $t9, $t9, -1
-    	j    tc9_write_buf2
+# write "@kent.edu" into buffer2
+tc9_wb2:
+    beq $t9, 0, tc9_next
+    lb $t4, 0($s1)
+    sb $t4, buffer2($s7)
+    addi $s7, $s7, 1
+    addi $s1, $s1, 1
+    addi $t9, $t9, -1
+    j    tc9_wb2
 
 tc9_next:
-    	addi $t0, $t0, 1
-    	j    tc9_main
-	
+    addi $t0, $t0, 1
+    j    tc9_main
+
 tc9_done:
-    	jr $ra
+    sb $zero, buffer1($s6)
+    sb $zero, buffer2($s7)
 
-# Combine buffer1 + buffer2 into buffer3
-	la $t0, buffer1
-	la $t1, buffer3
-	move $t2, $zero
+    la $t0, buffer1
+    la $t1, buffer3
 
-tc_copy_b1:
-    	lb $t3, 0($t0)
-    	beq $t3, 0, tc_copy_b2
-    	sb $t3, 0($t1)
-    	addi $t0, $t0, 1
-    	addi $t1, $t1, 1
-    	j tc_copy_b1
+tc9_c1:
+    lb $t3, 0($t0)
+    beqz $t3, tc9_c2
+    sb $t3, 0($t1)
+    addi $t0, $t0, 1
+    addi $t1, $t1, 1
+    j tc9_c1
 
-tc_copy_b2:
-    	la $t0, buffer2
+tc9_c2:
+    la $t0, buffer2
 
-tc_copy_b2_loop:
-    	lb $t3, 0($t0)
-    	beq $t3, 0, tc_print_final
-    	sb $t3, 0($t1)
-    	addi $t0, $t0, 1
-    	addi $t1, $t1, 1
-    	j tc_copy_b2_loop
+tc9_c2_loop:
+    lb $t3, 0($t0)
+    beqz $t3, tc9_print
+    sb $t3, 0($t1)
+    addi $t0, $t0, 1
+    addi $t1, $t1, 1
+    j tc9_c2_loop
 
-tc_print_final:
-    	la $a0, buffer3
-    	li $v0, 4
-    	syscall
+tc9_print:
+    sb $zero, 0($t1)
+    la $a0, buffer3
+    li $v0, 4
+    syscall
+    jr $ra
+
+
 
 	
 #==================================================
