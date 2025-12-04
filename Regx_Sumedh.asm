@@ -26,7 +26,7 @@
 	expressionPrompt: .asciiz "Please enter a valid regular expression: \n"
 	evaluatePrompt: .asciiz "Please enter an expression to evaluate: \n"
 	
-	tsc9_literal: .asciiz "@kent.edu"	#for test case 9
+	tsc9_literal: .asciiz "@kent.edu"		#for test case 9
 	
 	.align 2                    # Align to word boundary (2^2 = 4 bytes)
     	tokenArray: .space 64
@@ -34,6 +34,11 @@
     
     	.align 2                    # Align literal buffer too
     	literalDataBuffer: .space 128
+    	
+    	#3 Buffer for test cases 8 and 9
+    	buffer1: .space 64	#holds matched letters	
+    	buffer2: .space 64	# holds literals 
+    	buffer3: .space 128	#concatenates token 1 and 2
 	
 .text
 main:
@@ -58,8 +63,8 @@ main:
 	move $t0, $a0			# Saves the a0 address (The string address) into t0
 	syscall
 	
-
-
+	li $a3, 1		# REPRESENTS THE NUMBER OF TOKENS THAT ARE CREATED
+	
 	li $t0, 1			# Represents the value of 1, when we go through a loop we go to the next one by 1
 	
 	# Values for the regex input
@@ -212,6 +217,8 @@ nextToken:
     	# Check if reached end of input
     	beq $t3, 10, what_to_do   # If newline, we are finished
     	beq $t3, 0, what_to_do    # If null terminator, we are finsihed
+    	
+    	add $a3, $a3, $t0	# If there is nother token, add a plus one to the register that keeps track of the # of tokens
     	
     	addi $t5, $t5, 8	# Move to the next token position
     	# Advance to next character before tokenizing
@@ -401,12 +408,12 @@ printTokenDone:
 what_to_do:
 
     	lb $t0, 0($t5)         # load token type (byte 0)
+    	lb $s1,1($t5)
     	
-    	
-
-    	li $t1, 0
-    	beq $t0, $t1, exit     # if type=0 = end of tokens
-    	
+#=================================    	
+    	li $t1, 2
+    	beq $a3, $t1, run_tc8
+#==============================    
 	
     	li $t1, 1
     	beq $t0, $t1, do_literal   # type 1 = literal or wildcard
@@ -440,35 +447,55 @@ call_tc5:
     	j next_token_dispatch
 
 
-do_charclass: # byte 1 always 2
-	lb $t2, 3($t5) # byte 3 (1=* 2=. 3=.*)
-	lb $s1, 1($t5) # byte 2 (1=^ 2=xx 0=x-x) 
+do_charclass: 
+    	
+    	# load star flag
+    	lb $t2, 3($t5)
 	
-	#Test case 8
-	lb $t6, 3($t5)	#load *flag
-	li $t7, 1		# marked 1 = *
-	bne $t6, $t7, check_tc9		#check for *
-	addi $t0, $t5, 8		#load next token
-	lb $t8, 0($t0)	
-	li $t9, 1		# 1 = literal
-	bne $t8, $t9, check_tc9	# check for literal
-	jal test_case_8
-	j next_token_dispatch
+#======================
+    	# load next token
+    	addi $t0, $t5, 8
+    	lb $t1, 0($t0)
 
+
+    	# TEST CASE 8:
+   
+    	li $t3, 1           # literal type
+    	beq $t2, 1, check_tc8_token1   # if charclass has *
+    	j other_charclass
+
+check_tc8_token1:
+    beq $t1, $t3, run_tc8
+    j check_tc9             # <--- FIX: try TC9 next
+
+
+run_tc8:
+ 
+    jal test_case_8
+    j next_token_dispatch
+
+
+    # TEST CASE 9:
 check_tc9:
-	lb $t6, 3($t5)	#load *flag
-	li $t7, 1		# marked 1 = *
-	bne $t6, $t7, other_charclass		#check for *
-	addi $t0, $t5, 8		#load next token
-	lb $t8, 0($t0)	
-	li $t9, 1		# 1 = literal
-	bne $t8, $t9, other_charclass	# check for literal
-	lw $t1, 4($t0)		# literal string
-	lb $t2, 0($t1)		#first char of literal
-	li $t3, '@'
-	bne $t2, $t3, other_charclass	#check literal start w/ @
-	jal test_case_9
-	j next_token_dispatch
+    	beq $t1, $t3, check_tc9_literal_start
+    	j other_charclass
+
+check_tc9_literal_start:
+    lw $t4, 4($t0)        # t4 = pointer to literal string
+    lb $t4, 0($t4)        # t4 = first byte of that literal
+    li $t6, '@'           # use t6 as temp, do NOT overwrite t5
+    beq $t4, $t6, run_tc9
+    j other_charclass
+
+
+
+run_tc9:
+    addi $t5, $t5, 8      # move to literal token
+    jal test_case_9
+    j next_token_dispatch
+
+#======================	
+
 	
 other_charclass:
     	li $t3,0
@@ -551,8 +578,8 @@ full_match:
 
 
 match_done:
-    	jr $ra
-
+    	#jr $ra
+    	j exit
 printMatch:
     # If this is NOT the first match, print the comma first
     bnez $s7, print_commatc1
@@ -674,6 +701,7 @@ test_case_3:
 	lb $t2, 2($t5)	
 	lb $t4, 3($t5)
 	beq $t4, 0, exit	#if there's no * leave test_case_3
+	li $s7, 0		#first match flag = 0
 	
 test3_loop:
 	beq $t1, 10, exit # check for new line
@@ -706,11 +734,18 @@ finish_mark:
 	
 finish_check:
 	beq $t6, 0, check_char_increment	#increment if length of char finish
+	beq $s7, 0, no_commatc3
+	li $a0, ','
+	li $v0, 11
+	syscall
+
+no_commatc3:
+	li $s7,1		#at least one match
 	move $s5, $t6 	# number of char
 	move $s6, $t7	# start of input
 	
 print_check:
-	beq $s5, 0, print_commatc3	# stop printing if no char
+	beq $s5, 0, continue_loop	# stop printing if no char
 	lb $a0, 0($s6)	# load char to print
 	li $v0, 11
 	syscall
@@ -718,10 +753,7 @@ print_check:
 	addi $s5, $s5, -1	# decrement counter
 	j print_check
 
-print_commatc3:
-	li $a0, ','
-	li $v0, 11
-	syscall
+continue_loop:
 	j test3_loop		#continue scanning input
 
 check_char_increment:
@@ -884,168 +916,278 @@ end_group:
 tc7_done:
     jr $ra
 
+
 #============================================================
 test_case_8:
-	la $t0, InputToEvaluate	#input string
-	
-tc8_loop:
-	lb $t1, 0($t0)		# load cur input char
-	beq $t1, 0, tc8_finish		#exit the loop when input ends
-	beq $t1, 10, tc8_finish		#check for new line
-	move $t2, $t0		# start of the check
-	li $t6, 0		#length of matched char
-	j tc8_star
-	
-tc8_star:
-	lb $t1, 0($t2)		#load current char
-	beq $t1, 0, tc8_after_star		# exit the loop when input ends
-	beq $t1, 10, tc8_after_star	# check for new line
-	li $t3, 'A'	#Upper case lower bound A
-	li $t4, 'Z'	# Upper case upper bound Z
-	blt $t1, $t3, tc8_not_upper	# exit if char < A
-	ble $t1, $t4, tc8_accept	# exit if char > z
+    la  $t0, InputToEvaluate
+    
+     # Clear buffers once at the start
+    li $t7, 0
+tc8_clear_buf1:
+    bge $t7, 64, tc8_clear_buf2	#if index >= 64, go clear buffer2
+    sb $zero, buffer1($t7)		# store 0 into buffer1[index]
+    addi $t7, $t7, 1
+    j tc8_clear_buf1
+    
+tc8_clear_buf2:
+    li $t7, 0		# reset index to 0
+    
+tc8_clear_buf2_loop:
+    bge $t7, 64, tc8_buf_done	# if index >= 64, finished clearing buffers
+    sb $zero, buffer2($t7)		# store 0 into buffer2[index]
+    addi $t7, $t7, 1
+    j tc8_clear_buf2_loop
+    
+tc8_buf_done:
+    li  $s6, 0		#reset buffer 1
+    li  $s7, 0		#reset buffer 2
 
-tc8_not_upper:
-	li $t3, 'a'	#Lower case lower bound a
-	li $t4, 'z'	# Lower case upper bound z
-	blt $t1, $t3, tc8_after_star	# exit if char < A
-	bgt $t1, $t4, tc8_after_star	# exit if char > z
+tc8_main_loop:
+    lb  $t1, 0($t0)		#load current input char
+    beq $t1, 0, tc8_done
+    beq $t1, 10, tc8_done
 
-tc8_accept:
-	addi $t6, $t6, 1	# counter
-	addi $t2, $t2, 1	#increment
-	j tc8_star
+    move $t2, $t0      # Reset scan pointer
+    li   $t3, 0        # Reset letter count
+
+
+tc8_star_loop:
+    lb  $t4, 0($t2)
+    beq $t4, 0, tc8_after_star
+    beq $t4, 10, tc8_after_star
 	
+    # Check uppercase (A-Z)
+    blt $t4, 'A', tc8_check_lower # < 'A'? check lowercase
+    bgt $t4, 'Z', tc8_check_lower # > 'Z'? check lowercase
+    j tc8_take                     # Between A-Z, it's uppercase!
+
+tc8_check_lower:
+    blt $t4, 'a', tc8_after_star  # < 'a'? not a letter, stop
+    bgt $t4, 'z', tc8_after_star  # > 'z'? not a letter, stop
+    j tc8_take                     # Between a-z, it's lowercase!
+
+tc8_take:
+    addi $t3, $t3, 1
+    addi $t2, $t2, 1
+    j    tc8_star_loop
+
 tc8_after_star:
-	addi $t8, $t5, 8	#literal token
-	lw $t9, 4($t8)	#literal string
-	lb $s0, 2($t8)	# length of literal
-	move $s1, $t2	#literal start
-	li $s2, 0		#index
-	
-tc8_literal:
-	beq $s2, $s0,tc8_match	#mathced all char
-	lb $a0, 0($s1)		#input char
-	lb $a1, 0($t9)	# literal char
-	bne $a0, $a1, tc8_increment	#check mismatch
-	addi $s1, $s1, 1	#increment input
-	addi $t9, $t9, 1	#increment literal
-	addi $s2, $s2, 1 	#increment literal index
-	j tc8_literal
-	
+    addi $t8, $t5, 8       # next token
+    lb   $t9, 2($t8)		#literal length
+    lw   $s0, 4($t8)		#holds literal string
+
+    move $s1, $t2
+    li   $s2, 0
+
+tc8_litcheck:
+    beq $s2, $t9, tc8_match		#if match ".edu"
+
+    lb $s3, 0($s1)
+    lb $s4, 0($s0)
+    bne $s3, $s4, tc8_nomatch	#if mismatched
+
+    addi $s1, $s1, 1
+    addi $s0, $s0, 1
+    addi $s2, $s2, 1
+    j    tc8_litcheck
+
+tc8_nomatch:
+    addi $t0, $t0, 1       # advance only ONE char 
+    j    tc8_main_loop
+    
+tc8_nomatch_found:
+	jr $ra			# return from this function
+					# so that program moves to the next token
+
 tc8_match:
-	move $s3, $t0	# print start input
-	add $s4, $t6, $s0		# print length 
-	 
+    move $s3, $t0   # start of match
+
+# write [A-z]* into buffer1
+tc8_wb1:
+    beq $t3, 0, tc8_wb2           # stop if no letters left
+    lb  $t4, 0($s3)               # load letter
+    sb  $t4, buffer1($s6)         # store in buffer1
+    addi $s6, $s6, 1              # bump index
+    addi $s3, $s3, 1
+    addi $t3, $t3, -1
+    j    tc8_wb1
+    
+tc8_wb2:
+    addi $t8, $t5, 8       # Get pointer to literal token
+    lb   $t9, 2($t8)       # reload the literal length
+    lw   $s0, 4($t8)       # Reload literal start address
+    
+# write ".edu" into buffer2
+tc8_wb2_loop:
+    beq $t9, 0, tc8_done	# If no literal left → done
+    lb $t4, 0($s0) 	# Load literal char from input-position $s1
+    sb $t4, buffer2($s7)	 # Store into buffer2
+    addi $s7, $s7, 1 	# buffer2 index++
+    addi $s0, $s0, 1 		# advance input literal pointer
+    addi $t9, $t9, -1 	# literal length--
+    j tc8_wb2_loop
+
+tc8_after_match:
+    addi $t0, $t0, 1
+    j    tc8_main_loop
+
+tc8_done:
+    sb $zero, buffer1($s6)	# end for buffer1 
+    sb $zero, buffer2($s7)	# end forbuffer2
+
+    # combine into buffer3
+    la $t0, buffer1		 
+    la $t1, buffer3		
+    
+tc8_cp1:
+    lb $t3, 0($t0) 	# Read char from buffer1
+    beq $t3, 0, tc8_cp2 	# If null → move to buffer2
+    sb $t3, 0($t1)	 # Write char to buffer3
+    addi $t0, $t0, 1 	# next char in buffer1
+    addi $t1, $t1, 1 		# next position in buffer3
+    j tc8_cp1
+
+tc8_cp2:
+    la $t0, buffer2
+    
+tc8_cp2_loop:
+    lb $t3, 0($t0)	 # read char buffer2
+    beq $t3, 0, tc8_print	 # null → done
+    sb $t3, 0($t1) 	# append to buffer3
+    addi $t0, $t0, 1
+    addi $t1, $t1, 1
+    j tc8_cp2_loop
+
 tc8_print:
-	beq $s4, 0, tc8_print_comma
-	
-	lb $a0, 0($s3)	# load char to print
-	li $v0, 11
-	syscall
-	
-	addi $s3, $s3, 1	#increment char
-	addi $s4, $s4, -1	# decrement counter
-	j tc8_print
+    sb $zero, 0($t1)	#end of funal output
+    la $a0, buffer3		#print buffer3
+    li $v0, 4
+    syscall
+    jr $ra		# end of function
 
-tc8_print_comma:
-	li   $v0, 11
-    	li   $a0, ','
-    	syscall
 
-tc8_increment:
-	addi $t0, $t0, 1 	#increment to next string
-	j tc8_loop
-	
-tc8_finish:
-	jr $ra	
 
 #============================================================
+
 test_case_9:
-	la $t0, InputToEvaluate	#input string
+    la  $t0, InputToEvaluate
+    li  $s6, 0       # buffer1 index
+    li  $s7, 0       # buffer2 index
 
-tc9_loop:
-	lb $t1, 0($t0)		# load cur input char
-	beq $t1, 0, tc9_finish		#exit the loop when input ends
-	beq $t1, 10, tc9_finish		#check for new line
-	move $t2, $t0		# start of the check
-	li $t6, 0		#length of matched char
+tc9_main:
+    lb  $t1, 0($t0)
+    beq $t1, 0, tc9_done
+    beq $t1, 10, tc9_done
 
+    move $t2, $t0
+    li   $t3, 0     # count of [A-z]* chars
+
+# match [A-z]*
 tc9_star:
-	lb $t1, 0($t2)		#load current char
-	beq $t1, 0, tc9_after_star		# exit the loop when input ends
-	beq $t1, 10, tc9_after_star	# check for new line
-	li $t3, 'A'	#Upper case lower bound A
-	li $t4, 'Z'	# Upper case upper bound Z
-	blt $t1, $t3, tc9_not_upper	# exit if char < A
-	ble $t1, $t4, tc9_accept	# exit if char > z
-
-tc9_not_upper:
-	li $t3, 'a'	#Lower case lower bound a
-	li $t4, 'z'	# Lower case upper bound z
-	blt $t1, $t3, tc9_after_star	# exit if char < A
-	bgt $t1, $t4, tc9_after_star	# exit if char > z
+    lb  $t4, 0($t2)
+    beq $t4, 0, tc9_after_star
+    beq $t4, 10, tc9_after_star
+	
+    #upper case check
+    blt $t4, 'A', tc9_lower
+    ble $t4, 'Z', tc9_accept
+    
+    #lower case check
+tc9_lower:
+    blt $t4, 'a', tc9_after_star
+    bgt $t4, 'z', tc9_after_star
 
 tc9_accept:
-	addi $t6, $t6, 1	# counter
-	addi $t2, $t2, 1	#increment
-	j tc9_star
-	
-#tc9_star:
-#	lb $t1, 0($t2)		#load current char
-#	beq $t1, 10, tc9_after_star	# check for new line
-#	beq $t1, 0, tc9_after_star		# exit the loop when input ends
-#	lb $t3, 4($t5)	#lower bound A
-#	lb $t4, 5($t5)	# upper bound z
-#	blt $t1, $t3, tc9_after_star	# exit if char < A
-#	bgt $t1, $t4, tc9_after_star	# exit if char > z
-#	addi $t6, $t6, 1	# counter
-#	addi $t2, $t2, 1	#increment
-#	j tc9_star
-	
+    addi $t3, $t3, 1		#increment count
+    addi $t2, $t2, 1		#move scanner
+    j    tc9_star
+
+# literal "@kent.edu"
 tc9_after_star:
-	la $s4, tsc9_literal	# loads "@kent.edu"
-	move $s3, $t2	#literal match
-	li $s5, 9		#length of char
-	li $s6, 0 		#literal index
-	
-tc9_literal:
-	beq $s6, $s5,tc9_match	#mathced all char
-	lb $a0, 0($s3)	#input literal
-	lb $a1, 0($s4)		# literal char
-	bne $a0, $a1, tc9_increment	#check mismatch
-	addi $s3, $s3, 1	#increment literal match
-	addi $s4, $s4, 1	#increment "@kent.edu"
-	addi $s6, $s6, 1 	#increment literal index
-	j tc9_literal
-	
+    addi $t8, $t5, 8
+    lb   $t9, 2($t8)
+    lw   $s0, 4($t8)
+
+    move $s1, $t2
+    li   $s2, 0
+
+tc9_lit:
+    beq $s2, $t9, tc9_match
+
+    lb $s3, 0($s1)		#next input char
+    lb $s4, 0($s0)		#next literal char
+    bne $s3, $s4, tc9_nomatch
+
+    addi $s1, $s1, 1		#increment input
+    addi $s0, $s0, 1		#increment literal
+    addi $s2, $s2, 1		#next literal index
+    j    tc9_lit
+
+tc9_nomatch:
+    addi $t0, $t0, 1
+    j    tc9_main
+
+# MATCH FOUND
 tc9_match:
-	move $s7, $t0	# print start input
-	add $t9, $t6, $s5		# print letters + literal
+    move $s3, $t0
+
+# copy letters into buffer1
+tc9_wb1:
+    beq $t3, 0, tc9_wb2           # no more letters
+    lb $t4, 0($s3)                # get letter
+    sb $t4, buffer1($s6)          # store into buffer1
+    addi $s6, $s6, 1              # increment index
+    addi $s3, $s3, 1              # next input char
+    addi $t3, $t3, -1             # letters left--
+    j    tc9_wb1                  
+
+# copy until literal into buffer2
+tc9_wb2:
+    beq $t9, 0, tc9_next          # literal done
+    lb $t4, 0($s1)                # get literal char
+    sb $t4, buffer2($s7)          # store into buffer2
+    addi $s7, $s7, 1              # index++
+    addi $s1, $s1, 1              
+    addi $t9, $t9, -1             # literal left--
+    j    tc9_wb2
+
+tc9_next:
+    addi $t0, $t0, 1
+    j    tc9_main
+
+tc9_done:
+    sb $zero, buffer1($s6)		# end for buffer1
+    sb $zero, buffer2($s7)		#end for buffer2
+
+    la $t0, buffer1		#read buffer1
+    la $t1, buffer3		#write  into buffer3
+
+tc9_c1:
+    lb $t3, 0($t0)                # read buffer1 char
+    beqz $t3, tc9_c2              # done buffer1
+    sb $t3, 0($t1)                # write to buffer3
+    addi $t0, $t0, 1              # next char
+    addi $t1, $t1, 1              # next write
+    j tc9_c1
+
+tc9_c2:
+    la $t0, buffer2		#read buffer2
+
+tc9_c2_loop:
+    lb $t3, 0($t0)                # read char
+    beqz $t3, tc9_print           # done buffer2
+    sb $t3, 0($t1)                # write to buffer3
+    addi $t0, $t0, 1              # next char
+    addi $t1, $t1, 1              # next write
+    j tc9_c2_loop
 
 tc9_print:
-	beq $t9, 0, tc9_print_comma
-	
-	lb $a0, 0($s7)	# load char to print
-	li $v0, 11
-	syscall
-	
-	addi $s7, $s7, 1	#increment char
-	addi $t9, $t9, -1	# decrement comma counter
-	j tc9_print
+    sb $zero, 0($t1)	#end of result
+    la $a0, buffer3		#print buffer3
+    li $v0, 4
+    syscall
+    jr $ra
 
-tc9_print_comma:
-	li   $v0, 11
-    	li   $a0, ','
-    	syscall
-
-tc9_increment:
-	addi $t0, $t0, 1 	#increment to next string
-	j tc9_loop
-	
-tc9_finish:
-	jr $ra
-	
 #==================================================
 exit:
 	li $v0, 10
