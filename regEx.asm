@@ -2,6 +2,13 @@
 # Savar Shrestha
 # Sumedh Joshi
 
+
+#--------Failure report for partial credit---------
+#Test cases 8 and 9 fails because `what_to_do` is reading the wrong token information. Even though the tokenizer correctly creates two tokens
+#	 (`[A-z]*` and `\.edu`), the program doesn’t run test case 8 or 9 because Tokenizer finds literal "." in the  what_to_do branch. If it sees type = 0 then
+#	jumps to exit program terminates early Test_case_8 and Test_case_9 never run. You only see .edu, because do_literal called Test_case_1 earlier
+
+
 ## ------ TOKENIZER ----- ##
 # This is the idea for the Tokenizer, which will produce computable results for evaluation.
 # We have an 8 byte Register per token, and each token will represent a difference piece of information for the token
@@ -408,17 +415,12 @@ printTokenDone:
 what_to_do:
 
     	lb $t0, 0($t5)         # load token type (byte 0)
-    		
-
-    	li $t1, 0
-    	beq $t0, $t1, exit     # if type=0 = end of tokens
+    	lb $s1,1($t5)
     	
-    	li $t1, 2
-    	beq $a3, $t1, run_tc8
-    
-    	
-    	li $t1, 2
-    	beq $a3, $t1, run_tc8
+#=================================
+                  	#li $t1, 2
+    	#beq $a3, $t1, run_tc8
+#==============================    
 	
     	li $t1, 1
     	beq $t0, $t1, do_literal   # type 1 = literal or wildcard
@@ -456,7 +458,8 @@ do_charclass:
     	
     	# load star flag
     	lb $t2, 3($t5)
-
+	
+#======================
     	# load next token
     	addi $t0, $t5, 8
     	lb $t1, 0($t0)
@@ -497,6 +500,8 @@ run_tc9:
     addi $t5, $t5, 8      # move to literal token
     jal test_case_9
     j next_token_dispatch
+
+#======================	
 
 	
 other_charclass:
@@ -580,8 +585,8 @@ full_match:
 
 
 match_done:
-    	jr $ra
-
+    	#jr $ra
+    	j exit
 printMatch:
     # If this is NOT the first match, print the comma first
     bnez $s7, print_commatc1
@@ -918,6 +923,7 @@ end_group:
 tc7_done:
     jr $ra
 
+
 #============================================================
 test_case_8:
     la  $t0, InputToEvaluate
@@ -945,8 +951,8 @@ tc8_buf_done:
 
 tc8_main_loop:
     lb  $t1, 0($t0)		#load current input char
-    beq $t1, 0, tc8_done
-    beq $t1, 10, tc8_done
+    beq $t1, 0, tc8_nomatch_found
+    beq $t1, 10, tc8_nomatch_found
 
     move $t2, $t0      # Reset scan pointer
     li   $t3, 0        # Reset letter count
