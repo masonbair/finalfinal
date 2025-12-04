@@ -921,30 +921,51 @@ tc7_done:
 #============================================================
 test_case_8:
     la  $t0, InputToEvaluate
-    li  $s6, 0       # buffer1 index
-    li  $s7, 0       # buffer2 index
+    
+     # Clear buffers once at the start
+    li $t7, 0
+tc8_clear_buf1:
+    bge $t7, 64, tc8_clear_buf2	#if index >= 64, go clear buffer2
+    sb $zero, buffer1($t7)		# store 0 into buffer1[index]
+    addi $t7, $t7, 1
+    j tc8_clear_buf1
+    
+tc8_clear_buf2:
+    li $t7, 0		# reset index to 0
+    
+tc8_clear_buf2_loop:
+    bge $t7, 64, tc8_buf_done	# if index >= 64, finished clearing buffers
+    sb $zero, buffer2($t7)		# store 0 into buffer2[index]
+    addi $t7, $t7, 1
+    j tc8_clear_buf2_loop
+    
+tc8_buf_done:
+    li  $s6, 0		#reset buffer 1
+    li  $s7, 0		#reset buffer 2
 
 tc8_main_loop:
-    lb  $t1, 0($t0)		#load the current input char
+    lb  $t1, 0($t0)		#load current input char
     beq $t1, 0, tc8_done
     beq $t1, 10, tc8_done
 
-    move $t2, $t0      # pointer for scanning
-    li   $t3, 0        # count of [A-z]* chars
+    move $t2, $t0      # Reset scan pointer
+    li   $t3, 0        # Reset letter count
 
 
 tc8_star_loop:
-    lb  $t4, 0($t2)		# reads the next char
+    lb  $t4, 0($t2)
     beq $t4, 0, tc8_after_star
     beq $t4, 10, tc8_after_star
-
-    blt $t4, 'A', tc8_check_lower # < 'A'? not uppercase
-    ble $t4, 'Z', tc8_take        # <= 'Z'? uppercase → accept
+	
+    # Check uppercase (A-Z)
+    blt $t4, 'A', tc8_check_lower # < 'A'? check lowercase
+    bgt $t4, 'Z', tc8_check_lower # > 'Z'? check lowercase
+    j tc8_take                     # Between A-Z, it's uppercase!
 
 tc8_check_lower:
-    blt $t4, 'a', tc8_after_star  # < 'a'? not lowercase
-    bgt $t4, 'z', tc8_after_star  # > 'z'? not lowercase
-
+    blt $t4, 'a', tc8_after_star  # < 'a'? not a letter, stop
+    bgt $t4, 'z', tc8_after_star  # > 'z'? not a letter, stop
+    j tc8_take                     # Between a-z, it's lowercase!
 
 tc8_take:
     addi $t3, $t3, 1
@@ -953,8 +974,8 @@ tc8_take:
 
 tc8_after_star:
     addi $t8, $t5, 8       # next token
-    lb   $t9, 2($t8)
-    lw   $s0, 4($t8)
+    lb   $t9, 2($t8)		#literal length
+    lw   $s0, 4($t8)		#holds literal string
 
     move $s1, $t2
     li   $s2, 0
@@ -972,8 +993,12 @@ tc8_litcheck:
     j    tc8_litcheck
 
 tc8_nomatch:
-    addi $t0, $t0, 1		#next input /// I think the problem is here
+    addi $t0, $t0, 1       # advance only ONE char 
     j    tc8_main_loop
+    
+tc8_nomatch_found:
+	jr $ra			# return from this function
+					# so that program moves to the next token
 
 tc8_match:
     move $s3, $t0   # start of match
@@ -987,49 +1012,56 @@ tc8_wb1:
     addi $s3, $s3, 1
     addi $t3, $t3, -1
     j    tc8_wb1
-
-# write ".edu" into buffer2
+    
 tc8_wb2:
-    beq $t9, 0, tc8_after_match
-    lb $t4, 0($s1)
-    sb $t4, buffer2($s7)
-    addi $s7, $s7, 1
-    addi $s1, $s1, 1
-    addi $t9, $t9, -1
-    j    tc8_wb2
+    addi $t8, $t5, 8       # Get pointer to literal token
+    lb   $t9, 2($t8)       # reload the literal length
+    lw   $s0, 4($t8)       # Reload literal start address
+    
+# write ".edu" into buffer2
+tc8_wb2_loop:
+    beq $t9, 0, tc8_done	# If no literal left → done
+    lb $t4, 0($s0) 	# Load literal char from input-position $s1
+    sb $t4, buffer2($s7)	 # Store into buffer2
+    addi $s7, $s7, 1 	# buffer2 index++
+    addi $s0, $s0, 1 		# advance input literal pointer
+    addi $t9, $t9, -1 	# literal length--
+    j tc8_wb2_loop
 
 tc8_after_match:
     addi $t0, $t0, 1
     j    tc8_main_loop
 
 tc8_done:
-    sb $zero, buffer1($s6)
-    sb $zero, buffer2($s7)
+    sb $zero, buffer1($s6)	# end for buffer1 
+    sb $zero, buffer2($s7)	# end forbuffer2
 
     # combine into buffer3
-    la $t0, buffer1
-    la $t1, buffer3
+    la $t0, buffer1		 
+    la $t1, buffer3		
+    
 tc8_cp1:
-    lb $t3, 0($t0)
-    beqz $t3, tc8_cp2
-    sb $t3, 0($t1)
-    addi $t0, $t0, 1
-    addi $t1, $t1, 1
+    lb $t3, 0($t0) 	# Read char from buffer1
+    beq $t3, 0, tc8_cp2 	# If null → move to buffer2
+    sb $t3, 0($t1)	 # Write char to buffer3
+    addi $t0, $t0, 1 	# next char in buffer1
+    addi $t1, $t1, 1 		# next position in buffer3
     j tc8_cp1
 
 tc8_cp2:
     la $t0, buffer2
+    
 tc8_cp2_loop:
-    lb $t3, 0($t0)
-    beqz $t3, tc8_print
-    sb $t3, 0($t1)
+    lb $t3, 0($t0)	 # read char buffer2
+    beq $t3, 0, tc8_print	 # null → done
+    sb $t3, 0($t1) 	# append to buffer3
     addi $t0, $t0, 1
     addi $t1, $t1, 1
     j tc8_cp2_loop
 
 tc8_print:
-    sb $zero, 0($t1)
-    la $a0, buffer3
+    sb $zero, 0($t1)	#end of funal output
+    la $a0, buffer3		#print buffer3
     li $v0, 4
     syscall
     jr $ra		# end of function
@@ -1056,16 +1088,19 @@ tc9_star:
     lb  $t4, 0($t2)
     beq $t4, 0, tc9_after_star
     beq $t4, 10, tc9_after_star
-
+	
+    #upper case check
     blt $t4, 'A', tc9_lower
     ble $t4, 'Z', tc9_accept
+    
+    #lower case check
 tc9_lower:
     blt $t4, 'a', tc9_after_star
     bgt $t4, 'z', tc9_after_star
 
 tc9_accept:
-    addi $t3, $t3, 1
-    addi $t2, $t2, 1
+    addi $t3, $t3, 1		#increment count
+    addi $t2, $t2, 1		#move scanner
     j    tc9_star
 
 # literal "@kent.edu"
@@ -1080,13 +1115,13 @@ tc9_after_star:
 tc9_lit:
     beq $s2, $t9, tc9_match
 
-    lb $s3, 0($s1)
-    lb $s4, 0($s0)
+    lb $s3, 0($s1)		#next input char
+    lb $s4, 0($s0)		#next literal char
     bne $s3, $s4, tc9_nomatch
 
-    addi $s1, $s1, 1
-    addi $s0, $s0, 1
-    addi $s2, $s2, 1
+    addi $s1, $s1, 1		#increment input
+    addi $s0, $s0, 1		#increment literal
+    addi $s2, $s2, 1		#next literal index
     j    tc9_lit
 
 tc9_nomatch:
@@ -1097,24 +1132,24 @@ tc9_nomatch:
 tc9_match:
     move $s3, $t0
 
-# write letters into buffer1
+# copy letters into buffer1
 tc9_wb1:
-    beq $t3, 0, tc9_wb2
-    lb $t4, 0($s3)
-    sb $t4, buffer1($s6)
-    addi $s6, $s6, 1
-    addi $s3, $s3, 1
-    addi $t3, $t3, -1
-    j    tc9_wb1
+    beq $t3, 0, tc9_wb2           # no more letters
+    lb $t4, 0($s3)                # get letter
+    sb $t4, buffer1($s6)          # store into buffer1
+    addi $s6, $s6, 1              # increment index
+    addi $s3, $s3, 1              # next input char
+    addi $t3, $t3, -1             # letters left--
+    j    tc9_wb1                  
 
-# write "@kent.edu" into buffer2
+# copy until literal into buffer2
 tc9_wb2:
-    beq $t9, 0, tc9_next
-    lb $t4, 0($s1)
-    sb $t4, buffer2($s7)
-    addi $s7, $s7, 1
-    addi $s1, $s1, 1
-    addi $t9, $t9, -1
+    beq $t9, 0, tc9_next          # literal done
+    lb $t4, 0($s1)                # get literal char
+    sb $t4, buffer2($s7)          # store into buffer2
+    addi $s7, $s7, 1              # index++
+    addi $s1, $s1, 1              
+    addi $t9, $t9, -1             # literal left--
     j    tc9_wb2
 
 tc9_next:
@@ -1122,41 +1157,38 @@ tc9_next:
     j    tc9_main
 
 tc9_done:
-    sb $zero, buffer1($s6)
-    sb $zero, buffer2($s7)
+    sb $zero, buffer1($s6)		# end for buffer1
+    sb $zero, buffer2($s7)		#end for buffer2
 
-    la $t0, buffer1
-    la $t1, buffer3
+    la $t0, buffer1		#read buffer1
+    la $t1, buffer3		#write  into buffer3
 
 tc9_c1:
-    lb $t3, 0($t0)
-    beqz $t3, tc9_c2
-    sb $t3, 0($t1)
-    addi $t0, $t0, 1
-    addi $t1, $t1, 1
+    lb $t3, 0($t0)                # read buffer1 char
+    beqz $t3, tc9_c2              # done buffer1
+    sb $t3, 0($t1)                # write to buffer3
+    addi $t0, $t0, 1              # next char
+    addi $t1, $t1, 1              # next write
     j tc9_c1
 
 tc9_c2:
-    la $t0, buffer2
+    la $t0, buffer2		#read buffer2
 
 tc9_c2_loop:
-    lb $t3, 0($t0)
-    beqz $t3, tc9_print
-    sb $t3, 0($t1)
-    addi $t0, $t0, 1
-    addi $t1, $t1, 1
+    lb $t3, 0($t0)                # read char
+    beqz $t3, tc9_print           # done buffer2
+    sb $t3, 0($t1)                # write to buffer3
+    addi $t0, $t0, 1              # next char
+    addi $t1, $t1, 1              # next write
     j tc9_c2_loop
 
 tc9_print:
-    sb $zero, 0($t1)
-    la $a0, buffer3
+    sb $zero, 0($t1)	#end of result
+    la $a0, buffer3		#print buffer3
     li $v0, 4
     syscall
     jr $ra
 
-
-
-	
 #==================================================
 exit:
 	li $v0, 10
